@@ -1,8 +1,8 @@
 import { t } from '@i18n/index';
-import { createHmac } from 'node:crypto';
 import { Products, type PlaidApi } from 'plaid';
 
 import { createPlaidApiClient } from './api-client';
+import { plaidClientUserId } from './client-user-id';
 import { readPlaidConfig } from './config';
 
 export const createPlaidLinkToken = async ({
@@ -17,7 +17,7 @@ export const createPlaidLinkToken = async ({
   const config = readPlaidConfig();
   if (!config) throw new Error(t({ key: 'bankDataProviders.plaid.notConfigured' }));
 
-  const clientUserId = createHmac('sha256', config.secret).update(String(userId)).digest('hex');
+  const clientUserId = plaidClientUserId({ userId, secret: config.secret });
   const response = await (apiClient || createPlaidApiClient({ config })).linkTokenCreate({
     client_name: clientName,
     country_codes: config.countryCodes,

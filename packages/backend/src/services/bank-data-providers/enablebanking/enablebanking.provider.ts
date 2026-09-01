@@ -376,7 +376,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
    * Reauthorize an existing connection (renew consent without disconnecting)
    * Returns the new authorization URL for user to complete OAuth flow
    */
-  async reauthorize(connectionId: string): Promise<string> {
+  async reauthorize({ connectionId }: { connectionId: string }): Promise<{ authUrl: string }> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
@@ -459,7 +459,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
 
     await connection.save();
 
-    return authResponse.url;
+    return { authUrl: authResponse.url };
   }
 
   async disconnect({ connectionId }: { connectionId: string }): Promise<void> {

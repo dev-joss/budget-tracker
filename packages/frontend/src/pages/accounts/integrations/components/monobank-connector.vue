@@ -158,11 +158,11 @@ const handleConnectProvider = async () => {
     isLoading.value = true;
 
     // Step 1: Connect provider
-    const response = await connectProvider(
-      BANK_PROVIDER_TYPE.MONOBANK,
-      { apiToken: apiToken.value },
-      connectionName.value || undefined,
-    );
+    const response = await connectProvider({
+      providerType: BANK_PROVIDER_TYPE.MONOBANK,
+      credentials: { apiToken: apiToken.value },
+      providerName: connectionName.value || undefined,
+    });
 
     connectionId.value = response.connectionId;
 

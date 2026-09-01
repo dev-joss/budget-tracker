@@ -14,6 +14,7 @@ import updateConnectionDetails from '@controllers/bank-data-providers/connection
 import listBanks from '@controllers/bank-data-providers/enablebanking/list-banks';
 import listCountries from '@controllers/bank-data-providers/enablebanking/list-countries';
 import oauthCallback from '@controllers/bank-data-providers/enablebanking/oauth-callback';
+import completePlaidUpdate from '@controllers/bank-data-providers/plaid/complete-update';
 import createPlaidLinkToken from '@controllers/bank-data-providers/plaid/create-link-token';
 import * as providersController from '@controllers/bank-data-providers/providers.controller';
 import checkSync from '@controllers/bank-data-providers/sync/check-sync';
@@ -161,6 +162,14 @@ router.post(
   blockDemoUsers,
   validateEndpoint(createPlaidLinkToken.schema),
   createPlaidLinkToken.handler,
+);
+router.post(
+  '/plaid/update-complete',
+  authenticateSession,
+  blockDemoUsers,
+  checkBaseCurrencyLock,
+  validateEndpoint(completePlaidUpdate.schema),
+  completePlaidUpdate.handler,
 );
 
 // Enable Banking specific endpoints

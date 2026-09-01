@@ -4,6 +4,7 @@ import { t } from '@i18n/index';
 import { ConflictError, ValidationError } from '@js/errors';
 import Accounts from '@models/accounts.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
+import { unlinkAccountFromBankConnection } from '@services/accounts/unlink-from-bank-connection';
 import {
   BaseBankDataProvider,
   type DateRange,
@@ -17,6 +18,7 @@ import { writeBankBalanceWithHistory } from '@services/bank-data-providers/utils
 import { AccountSubtype, AccountType, type AccountBase, type PlaidApi } from 'plaid';
 
 import { createPlaidApiClient } from './api-client';
+import { plaidClientUserId } from './client-user-id';
 import { readPlaidConfig, type PlaidConfig } from './config';
 import { mapPlaidAccount } from './transaction-mapper';
 import { enqueuePlaidSync } from './transaction-sync-queue';
@@ -149,6 +151,49 @@ export class PlaidProvider extends BaseBankDataProvider {
 
   async refreshCredentials(): Promise<void> {
     throw new ValidationError({ message: t({ key: 'bankDataProviders.plaid.credentialRepairRequiresUpdateMode' }) });
+  }
+
+  async reauthorize({ connectionId }: { connectionId: string }): Promise<{ linkToken: string }> {
+    const connection = await this.getConnection(connectionId);
+    this.validateProviderType(connection);
+    const { accessToken } = connection.getDecryptedCredentials() as unknown as PlaidCredentials;
+    const config = this.requireConfig();
+    const response = await this.client().linkTokenCreate({
+      client_name: 'MoneyMatter',
+      country_codes: config.countryCodes,
+      language: 'en',
+      access_token: accessToken,
+      user: { client_user_id: plaidClientUserId({ userId: connection.userId, secret: config.secret }) },
+      ...(config.redirectUri && { redirect_uri: config.redirectUri }),
+    });
+    return { linkToken: response.data.link_token };
+  }
+
+  async completeUpdate({ connectionId, userId }: { connectionId: string; userId: number }): Promise<void> {
+    const connection = await BankDataProviderConnections.findOne({ where: { id: connectionId, userId } });
+    if (!connection) throw new ValidationError({ message: t({ key: 'errors.connectionNotFound' }) });
+    this.validateProviderType(connection);
+    const { accessToken } = connection.getDecryptedCredentials() as unknown as PlaidCredentials;
+    const [itemResponse, accountsResponse, localAccounts] = await Promise.all([
+      this.client().itemGet({ access_token: accessToken }),
+      this.client().accountsGet({ access_token: accessToken }),
+      Accounts.findAll({ where: { userId, bankDataProviderConnectionId: connectionId } }),
+    ]);
+    const authorizedIds = new Set(accountsResponse.data.accounts.map((account) => account.account_id));
+    for (const account of localAccounts) {
+      if (account.externalId && !authorizedIds.has(account.externalId)) {
+        await unlinkAccountFromBankConnection({ accountId: account.id, userId });
+      }
+    }
+    const metadata = connection.metadata as PlaidConnectionMetadata;
+    connection.isActive = true;
+    connection.metadata = {
+      ...metadata,
+      itemId: itemResponse.data.item.item_id,
+      repairWarning: null,
+      deactivationReason: null,
+    };
+    await connection.save();
   }
 
   async fetchAccounts({ connectionId }: { connectionId: string }): Promise<ProviderAccount[]> {

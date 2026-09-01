@@ -191,7 +191,10 @@ const handleConnectProvider = async () => {
   try {
     isLoading.value = true;
 
-    const response = await connectProvider(BANK_PROVIDER_TYPE.LUNCHFLOW, { apiKey: apiKey.value });
+    const response = await connectProvider({
+      providerType: BANK_PROVIDER_TYPE.LUNCHFLOW,
+      credentials: { apiKey: apiKey.value },
+    });
 
     connectionId.value = response.connectionId;
 

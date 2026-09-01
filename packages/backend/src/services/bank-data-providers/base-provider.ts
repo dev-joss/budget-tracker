@@ -380,6 +380,8 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
    */
   abstract refreshCredentials(args: { connectionId: string; newCredentials: unknown }): Promise<void>;
 
+  reauthorize?(args: { connectionId: string }): Promise<{ authUrl: string } | { linkToken: string }>;
+
   /**
    * Fetch list of accounts from provider (without saving to DB)
    * @param connectionId - Connection to fetch accounts from

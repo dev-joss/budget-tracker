@@ -183,6 +183,8 @@ export interface IBankDataProvider {
    */
   refreshCredentials(args: { connectionId: string; newCredentials: unknown }): Promise<void>;
 
+  reauthorize?(args: { connectionId: string }): Promise<{ authUrl: string } | { linkToken: string }>;
+
   // ========================================
   // Account Operations
   // ========================================
