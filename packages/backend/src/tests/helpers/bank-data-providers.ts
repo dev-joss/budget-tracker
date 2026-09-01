@@ -6,6 +6,7 @@ import * as getConnectionDetailsService from '@services/bank-data-providers/conn
 import * as listUserConnectionsService from '@services/bank-data-providers/connection/list-user-connections';
 import * as reconcileDuplicatesService from '@services/bank-data-providers/connection/reconcile-duplicates-for-account';
 import { listSupportedProviders } from '@services/bank-data-providers/list-supported-providers.service';
+import type { createPlaidLinkToken as apiCreatePlaidLinkToken } from '@services/bank-data-providers/plaid/create-link-token.service';
 
 import { MakeRequestReturn, UtilizeReturnType, makeRequest } from './common';
 
@@ -13,6 +14,14 @@ export function getSupportedBankProviders<R extends boolean | undefined = false>
   return makeRequest<{ providers: Awaited<ReturnType<typeof listSupportedProviders>> }, R>({
     method: 'get',
     url: '/bank-data-providers',
+    raw,
+  });
+}
+
+export function createPlaidLinkToken<R extends boolean | undefined = false>({ raw }: { raw?: R } = {}) {
+  return makeRequest<Awaited<ReturnType<typeof apiCreatePlaidLinkToken>>, R>({
+    method: 'post',
+    url: '/bank-data-providers/plaid/link-token',
     raw,
   });
 }
@@ -312,6 +321,7 @@ export function disconnectProvider<R extends boolean | undefined = false>({
 
 export default {
   getSupportedBankProviders,
+  createPlaidLinkToken,
   connectProvider,
   disconnectProvider,
   listUserConnections,
