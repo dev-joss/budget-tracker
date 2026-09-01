@@ -1,3 +1,4 @@
+import { t } from '@i18n/index';
 import { createHmac } from 'node:crypto';
 import { Products, type PlaidApi } from 'plaid';
 
@@ -14,7 +15,7 @@ export const createPlaidLinkToken = async ({
   apiClient?: PlaidApi;
 }): Promise<{ linkToken: string; expiration: string }> => {
   const config = readPlaidConfig();
-  if (!config) throw new Error('Plaid is not configured');
+  if (!config) throw new Error(t({ key: 'bankDataProviders.plaid.notConfigured' }));
 
   const clientUserId = createHmac('sha256', config.secret).update(String(userId)).digest('hex');
   const response = await (apiClient || createPlaidApiClient({ config })).linkTokenCreate({
