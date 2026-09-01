@@ -358,34 +358,34 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
    * @param credentials - Provider-specific credentials
    * @returns Connection ID
    */
-  abstract connect(userId: number, credentials: unknown): Promise<string>;
+  abstract connect(args: { userId: number; credentials: unknown }): Promise<string>;
 
   /**
    * Disconnect and remove a provider connection
    * @param connectionId - Connection to disconnect
    */
-  abstract disconnect(connectionId: string): Promise<void>;
+  abstract disconnect(args: { connectionId: string }): Promise<void>;
 
   /**
    * Validate credentials by testing connection to provider
    * @param credentials - Credentials to validate
    * @returns True if credentials are valid
    */
-  abstract validateCredentials(credentials: unknown): Promise<boolean>;
+  abstract validateCredentials(args: { credentials: unknown }): Promise<boolean>;
 
   /**
    * Update credentials for an existing connection
    * @param connectionId - Connection to update
    * @param newCredentials - New credentials to store
    */
-  abstract refreshCredentials(connectionId: string, newCredentials: unknown): Promise<void>;
+  abstract refreshCredentials(args: { connectionId: string; newCredentials: unknown }): Promise<void>;
 
   /**
    * Fetch list of accounts from provider (without saving to DB)
    * @param connectionId - Connection to fetch accounts from
    * @returns List of provider accounts
    */
-  abstract fetchAccounts(connectionId: string): Promise<ProviderAccount[]>;
+  abstract fetchAccounts(args: { connectionId: string }): Promise<ProviderAccount[]>;
 
   /**
    * Fetch transactions for a specific account (without saving to DB)
@@ -394,11 +394,11 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
    * @param dateRange - Optional date range to filter transactions
    * @returns List of transactions
    */
-  abstract fetchTransactions(
-    connectionId: string,
-    accountExternalId: string,
-    dateRange?: DateRange,
-  ): Promise<ProviderTransaction[]>;
+  abstract fetchTransactions(args: {
+    connectionId: string;
+    accountExternalId: string;
+    dateRange?: DateRange;
+  }): Promise<ProviderTransaction[]>;
 
   /**
    * Sync transactions for a specific account to our database
@@ -423,14 +423,14 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
    * @param accountExternalId - Provider's account ID
    * @returns Current balance
    */
-  abstract fetchBalance(connectionId: string, accountExternalId: string): Promise<ProviderBalance>;
+  abstract fetchBalance(args: { connectionId: string; accountExternalId: string }): Promise<ProviderBalance>;
 
   /**
    * Refresh balance for a specific account in our system
    * @param connectionId - Connection ID
    * @param systemAccountId - Our internal account ID
    */
-  abstract refreshBalance(connectionId: string, systemAccountId: string): Promise<void>;
+  abstract refreshBalance(args: { connectionId: string; systemAccountId: string }): Promise<void>;
 
   /**
    * Set up webhook for real-time updates (if supported)
@@ -438,14 +438,14 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
    * @param connectionId - Connection to set up webhook for
    * @param webhookUrl - URL to receive webhook notifications
    */
-  setupWebhook?(connectionId: string, webhookUrl: string): Promise<void>;
+  setupWebhook?(args: { connectionId: string; webhookUrl: string }): Promise<void>;
 
   /**
    * Handle incoming webhook payload (if supported)
    * Optional method - only implement if provider supports webhooks
    * @param payload - Webhook payload from provider
    */
-  handleWebhook?(payload: unknown): Promise<void>;
+  handleWebhook?(args: { payload: unknown }): Promise<void>;
 
   /**
    * Load transactions for an explicit historical window (the account-details

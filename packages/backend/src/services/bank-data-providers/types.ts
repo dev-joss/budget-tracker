@@ -161,27 +161,27 @@ export interface IBankDataProvider {
    * @param credentials - Provider-specific credentials
    * @returns Connection ID
    */
-  connect(userId: number, credentials: unknown): Promise<string>;
+  connect(args: { userId: number; credentials: unknown }): Promise<string>;
 
   /**
    * Disconnect and remove a provider connection
    * @param connectionId - Connection to disconnect
    */
-  disconnect(connectionId: string): Promise<void>;
+  disconnect(args: { connectionId: string }): Promise<void>;
 
   /**
    * Validate credentials by testing connection to provider
    * @param credentials - Credentials to validate
    * @returns True if credentials are valid
    */
-  validateCredentials(credentials: unknown): Promise<boolean>;
+  validateCredentials(args: { credentials: unknown }): Promise<boolean>;
 
   /**
    * Update credentials for an existing connection
    * @param connectionId - Connection to update
    * @param newCredentials - New credentials to store
    */
-  refreshCredentials(connectionId: string, newCredentials: unknown): Promise<void>;
+  refreshCredentials(args: { connectionId: string; newCredentials: unknown }): Promise<void>;
 
   // ========================================
   // Account Operations
@@ -192,7 +192,7 @@ export interface IBankDataProvider {
    * @param connectionId - Connection to fetch accounts from
    * @returns List of provider accounts
    */
-  fetchAccounts(connectionId: string): Promise<ProviderAccount[]>;
+  fetchAccounts(args: { connectionId: string }): Promise<ProviderAccount[]>;
 
   // ========================================
   // Transaction Operations
@@ -205,11 +205,11 @@ export interface IBankDataProvider {
    * @param dateRange - Optional date range to filter transactions
    * @returns List of transactions
    */
-  fetchTransactions(
-    connectionId: string,
-    accountExternalId: string,
-    dateRange?: DateRange,
-  ): Promise<ProviderTransaction[]>;
+  fetchTransactions(args: {
+    connectionId: string;
+    accountExternalId: string;
+    dateRange?: DateRange;
+  }): Promise<ProviderTransaction[]>;
 
   /**
    * Sync transactions for a specific account to our database
@@ -248,14 +248,14 @@ export interface IBankDataProvider {
    * @param accountExternalId - Provider's account ID
    * @returns Current balance
    */
-  fetchBalance(connectionId: string, accountExternalId: string): Promise<ProviderBalance>;
+  fetchBalance(args: { connectionId: string; accountExternalId: string }): Promise<ProviderBalance>;
 
   /**
    * Refresh balance for a specific account in our system
    * @param connectionId - Connection ID
    * @param systemAccountId - Our internal account ID
    */
-  refreshBalance(connectionId: string, systemAccountId: string): Promise<void>;
+  refreshBalance(args: { connectionId: string; systemAccountId: string }): Promise<void>;
 
   // ========================================
   // Webhook Support (Optional)
@@ -266,13 +266,13 @@ export interface IBankDataProvider {
    * @param connectionId - Connection to set up webhook for
    * @param webhookUrl - URL to receive webhook notifications
    */
-  setupWebhook?(connectionId: string, webhookUrl: string): Promise<void>;
+  setupWebhook?(args: { connectionId: string; webhookUrl: string }): Promise<void>;
 
   /**
    * Handle incoming webhook payload (if supported)
    * @param payload - Webhook payload from provider
    */
-  handleWebhook?(payload: unknown): Promise<void>;
+  handleWebhook?(args: { payload: unknown }): Promise<void>;
 
   /**
    * Load transactions for an explicit historical window (the account-details

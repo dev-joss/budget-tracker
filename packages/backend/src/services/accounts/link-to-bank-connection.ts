@@ -94,7 +94,7 @@ export const linkAccountToBankConnection = withTransaction(
     }
 
     const provider = bankProviderRegistry.get(bankConnection.providerType as BANK_PROVIDER_TYPE);
-    const externalAccounts = await provider.fetchAccounts(connectionId);
+    const externalAccounts = await provider.fetchAccounts({ connectionId });
 
     const externalAccount = externalAccounts.find((acc) => acc.externalId === externalAccountId);
 

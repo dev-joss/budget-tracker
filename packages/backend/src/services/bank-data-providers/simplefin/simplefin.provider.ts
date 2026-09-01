@@ -128,7 +128,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
   // Connection Management
   // ============================================================================
 
-  async connect(userId: number, credentials: unknown): Promise<string> {
+  async connect({ userId, credentials }: { userId: number; credentials: unknown }): Promise<string> {
     if (!this.isValidConnectInput(credentials)) {
       throw new ValidationError({ message: t({ key: 'bankDataProviders.simplefin.invalidCredentialsFormat' }) });
     }
@@ -170,14 +170,14 @@ export class SimplefinProvider extends BaseBankDataProvider {
     return connection.id;
   }
 
-  async disconnect(connectionId: string): Promise<void> {
+  async disconnect({ connectionId }: { connectionId: string }): Promise<void> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
     await connection.destroy();
   }
 
-  async validateCredentials(credentials: unknown): Promise<boolean> {
+  async validateCredentials({ credentials }: { credentials: unknown }): Promise<boolean> {
     if (!this.isValidStoredCredentials(credentials)) {
       return false;
     }
@@ -189,7 +189,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
     return await apiClient.testConnection();
   }
 
-  async refreshCredentials(connectionId: string, newCredentials: unknown): Promise<void> {
+  async refreshCredentials({ connectionId, newCredentials }: { connectionId: string; newCredentials: unknown }): Promise<void> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
@@ -204,7 +204,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
       throw new ValidationError({ message: t({ key: 'bankDataProviders.simplefin.invalidCredentialsFormat' }) });
     }
 
-    const isValid = await this.validateCredentials({ accessUrl });
+    const isValid = await this.validateCredentials({ credentials: { accessUrl } });
     if (!isValid) {
       throw new ForbiddenError({ message: t({ key: 'bankDataProviders.simplefin.invalidAccessUrl' }) });
     }
@@ -227,7 +227,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
   // Account Operations
   // ============================================================================
 
-  async fetchAccounts(connectionId: string): Promise<ProviderAccount[]> {
+  async fetchAccounts({ connectionId }: { connectionId: string }): Promise<ProviderAccount[]> {
     const { accessUrl } = await this.getValidatedCredentials(connectionId);
     const apiClient = new SimplefinApiClient(accessUrl);
 
@@ -273,11 +273,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
   // Transaction Operations
   // ============================================================================
 
-  async fetchTransactions(
-    connectionId: string,
-    accountExternalId: string,
-    dateRange?: DateRange,
-  ): Promise<ProviderTransaction[]> {
+  async fetchTransactions({ connectionId, accountExternalId, dateRange }: { connectionId: string; accountExternalId: string; dateRange?: DateRange }): Promise<ProviderTransaction[]> {
     const { accessUrl } = await this.getValidatedCredentials(connectionId);
     const apiClient = new SimplefinApiClient(accessUrl);
 
@@ -514,7 +510,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
   // Balance Operations
   // ============================================================================
 
-  async fetchBalance(connectionId: string, accountExternalId: string): Promise<ProviderBalance> {
+  async fetchBalance({ connectionId, accountExternalId }: { connectionId: string; accountExternalId: string }): Promise<ProviderBalance> {
     const { accessUrl } = await this.getValidatedCredentials(connectionId);
     const apiClient = new SimplefinApiClient(accessUrl);
 
@@ -536,14 +532,14 @@ export class SimplefinProvider extends BaseBankDataProvider {
     };
   }
 
-  async refreshBalance(connectionId: string, systemAccountId: string): Promise<void> {
+  async refreshBalance({ connectionId, systemAccountId }: { connectionId: string; systemAccountId: string }): Promise<void> {
     const account = await this.getSystemAccount(systemAccountId);
 
     if (!account.externalId) {
       throw new BadRequestError({ message: t({ key: 'bankDataProviders.simplefin.accountNoExternalId' }) });
     }
 
-    const balance = await this.fetchBalance(connectionId, account.externalId);
+    const balance = await this.fetchBalance({ connectionId, accountExternalId: account.externalId });
     await writeBankBalanceWithHistory({
       account,
       balance: Money.fromCents(balance.amount),

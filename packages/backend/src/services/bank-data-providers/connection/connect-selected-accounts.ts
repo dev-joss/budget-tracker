@@ -73,7 +73,7 @@ const createAccountsForConnection = withTransaction(
     const provider = bankProviderRegistry.get(connection.providerType as BANK_PROVIDER_TYPE);
 
     // Fetch all available accounts from provider
-    const availableAccounts = await provider.fetchAccounts(connectionId);
+    const availableAccounts = await provider.fetchAccounts({ connectionId });
 
     // Filter to only selected accounts
     const selectedAccounts = availableAccounts.filter((acc) => accountExternalIds.includes(acc.externalId));
