@@ -169,7 +169,13 @@ export class WalutomatProvider extends BaseBankDataProvider {
     return await client.testConnection();
   }
 
-  async refreshCredentials({ connectionId, newCredentials }: { connectionId: string; newCredentials: unknown }): Promise<void> {
+  async refreshCredentials({
+    connectionId,
+    newCredentials,
+  }: {
+    connectionId: string;
+    newCredentials: unknown;
+  }): Promise<void> {
     if (!this.isValidCredentials(newCredentials)) {
       throw new ValidationError({
         message: t({ key: 'bankDataProviders.walutomat.invalidCredentialsFormat' }),
@@ -233,7 +239,15 @@ export class WalutomatProvider extends BaseBankDataProvider {
   // Transaction Operations
   // ============================================================================
 
-  async fetchTransactions({ connectionId, accountExternalId, dateRange }: { connectionId: string; accountExternalId: string; dateRange?: DateRange }): Promise<ProviderTransaction[]> {
+  async fetchTransactions({
+    connectionId,
+    accountExternalId,
+    dateRange,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+    dateRange?: DateRange;
+  }): Promise<ProviderTransaction[]> {
     const credentials = await this.getValidatedCredentials(connectionId);
     const client = this.createApiClient(credentials);
     const currency = currencyFromExternalId(accountExternalId);
@@ -457,7 +471,13 @@ export class WalutomatProvider extends BaseBankDataProvider {
   // Balance Operations
   // ============================================================================
 
-  async fetchBalance({ connectionId, accountExternalId }: { connectionId: string; accountExternalId: string }): Promise<ProviderBalance> {
+  async fetchBalance({
+    connectionId,
+    accountExternalId,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+  }): Promise<ProviderBalance> {
     const credentials = await this.getValidatedCredentials(connectionId);
     const client = this.createApiClient(credentials);
     const currency = currencyFromExternalId(accountExternalId);
@@ -478,7 +498,13 @@ export class WalutomatProvider extends BaseBankDataProvider {
     };
   }
 
-  async refreshBalance({ connectionId, systemAccountId }: { connectionId: string; systemAccountId: string }): Promise<void> {
+  async refreshBalance({
+    connectionId,
+    systemAccountId,
+  }: {
+    connectionId: string;
+    systemAccountId: string;
+  }): Promise<void> {
     const account = await this.getSystemAccount(systemAccountId);
 
     if (!account.externalId) {

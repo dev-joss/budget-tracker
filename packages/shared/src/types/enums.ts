@@ -30,6 +30,7 @@ export enum ACCOUNT_TYPES {
   lunchflow = 'lunchflow', // lunchflow provider connection
   walutomat = 'walutomat', // walutomat provider connection
   simplefin = 'simplefin', // SimpleFIN Bridge provider connection
+  plaid = 'plaid', // Plaid provider connection
 }
 
 /**
@@ -41,6 +42,7 @@ export enum BANK_PROVIDER_TYPE {
   LUNCHFLOW = 'lunchflow',
   WALUTOMAT = 'walutomat',
   SIMPLEFIN = 'simplefin',
+  PLAID = 'plaid',
 }
 
 /**

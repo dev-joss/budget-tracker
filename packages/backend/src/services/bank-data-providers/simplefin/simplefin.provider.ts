@@ -189,7 +189,13 @@ export class SimplefinProvider extends BaseBankDataProvider {
     return await apiClient.testConnection();
   }
 
-  async refreshCredentials({ connectionId, newCredentials }: { connectionId: string; newCredentials: unknown }): Promise<void> {
+  async refreshCredentials({
+    connectionId,
+    newCredentials,
+  }: {
+    connectionId: string;
+    newCredentials: unknown;
+  }): Promise<void> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
@@ -273,7 +279,15 @@ export class SimplefinProvider extends BaseBankDataProvider {
   // Transaction Operations
   // ============================================================================
 
-  async fetchTransactions({ connectionId, accountExternalId, dateRange }: { connectionId: string; accountExternalId: string; dateRange?: DateRange }): Promise<ProviderTransaction[]> {
+  async fetchTransactions({
+    connectionId,
+    accountExternalId,
+    dateRange,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+    dateRange?: DateRange;
+  }): Promise<ProviderTransaction[]> {
     const { accessUrl } = await this.getValidatedCredentials(connectionId);
     const apiClient = new SimplefinApiClient(accessUrl);
 
@@ -510,7 +524,13 @@ export class SimplefinProvider extends BaseBankDataProvider {
   // Balance Operations
   // ============================================================================
 
-  async fetchBalance({ connectionId, accountExternalId }: { connectionId: string; accountExternalId: string }): Promise<ProviderBalance> {
+  async fetchBalance({
+    connectionId,
+    accountExternalId,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+  }): Promise<ProviderBalance> {
     const { accessUrl } = await this.getValidatedCredentials(connectionId);
     const apiClient = new SimplefinApiClient(accessUrl);
 
@@ -532,7 +552,13 @@ export class SimplefinProvider extends BaseBankDataProvider {
     };
   }
 
-  async refreshBalance({ connectionId, systemAccountId }: { connectionId: string; systemAccountId: string }): Promise<void> {
+  async refreshBalance({
+    connectionId,
+    systemAccountId,
+  }: {
+    connectionId: string;
+    systemAccountId: string;
+  }): Promise<void> {
     const account = await this.getSystemAccount(systemAccountId);
 
     if (!account.externalId) {
