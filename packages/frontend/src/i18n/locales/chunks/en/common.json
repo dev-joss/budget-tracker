@@ -26,6 +26,8 @@
       "clear": "Clear",
       "apply": "Apply",
       "retry": "Try again",
+      "previous": "Previous",
+      "next": "Next",
       "copyInviteLink": "Copy invite link",
       "moveTo": "Move to…"
     },

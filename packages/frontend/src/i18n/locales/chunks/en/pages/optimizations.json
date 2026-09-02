@@ -127,6 +127,85 @@
         "skipSuccess": "Suggestion dismissed",
         "skipError": "Failed to skip suggestion"
       }
+    },
+    "workExpenses": {
+      "card": { "title": "Work expenses", "description": "Review and match expenses from Expensify." },
+      "title": "Work expenses",
+      "description": "Match Expensify work expenses to transactions charged to your personal cards.",
+      "actions": {
+        "integrationSettings": "Integration settings",
+        "syncNow": "Sync now",
+        "confirmMatch": "Confirm match",
+        "removeMatch": "Remove match"
+      },
+      "integrationLoadError": {
+        "title": "Couldn't load integration status",
+        "description": "Try again to load your Expensify integration."
+      },
+      "disconnected": {
+        "title": "Expensify is not connected",
+        "description": "Connect Expensify to import and match reimbursable work expenses.",
+        "action": "Connect Expensify"
+      },
+      "filters": { "label": "Match state", "placeholder": "All match states", "all": "All" },
+      "matchStates": {
+        "exact": "Exact match",
+        "likely": "Likely match",
+        "ambiguous": "Ambiguous",
+        "unmatched": "Unmatched",
+        "review": "Needs review"
+      },
+      "bulk": {
+        "selectAll": "Select all exact matches",
+        "selectExpense": "Select {merchant}",
+        "title": "{count} exact match | {count} exact matches",
+        "description": "Review selected matches before confirming them.",
+        "confirm": "Confirm {count} match | Confirm {count} matches"
+      },
+      "loadError": {
+        "title": "Couldn't load work expenses",
+        "description": "Try again to load the reconciliation list."
+      },
+      "empty": {
+        "title": "No work expenses found",
+        "description": "Sync Expensify to import reimbursable work expenses."
+      },
+      "report": "Report {id}",
+      "expenseDetails": {
+        "title": "Expense details",
+        "merchant": "Merchant",
+        "reportState": "Report state",
+        "expenseId": "Expense ID",
+        "linkedTransaction": "Linked transaction"
+      },
+      "candidates": {
+        "title": "Transaction matches",
+        "empty": "No matching transactions found.",
+        "score": "Score {score}%",
+        "dateDistance": "{count} day away | {count} days away"
+      },
+      "review": { "title": "Review needed", "keep": "Keep match", "relink": "Relink" },
+      "reviewReasons": {
+        "upstream_changed": "The Expensify expense changed.",
+        "upstream_missing": "The expense is no longer present in Expensify.",
+        "upstream_ineligible": "The expense is no longer eligible for reimbursement.",
+        "local_transaction_changed": "The linked transaction changed.",
+        "transaction_deleted": "The linked transaction was deleted."
+      },
+      "pagination": { "range": "Showing {from}–{to} of {total}" },
+      "removeMatch": {
+        "title": "Remove this match?",
+        "description": "The transaction will remain a work expense, but its Expensify link will be removed.",
+        "confirm": "Remove match"
+      },
+      "notifications": {
+        "matchesConfirmed": "Work expense match confirmed",
+        "confirmFailed": "Failed to confirm work expense match",
+        "matchRemoved": "Work expense match removed",
+        "removeMatchFailed": "Failed to remove work expense match",
+        "reviewResolved": "Work expense review resolved",
+        "resolveReviewFailed": "Failed to resolve work expense review"
+      }
     }
   }
 }

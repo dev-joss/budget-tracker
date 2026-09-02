@@ -187,6 +187,9 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
 
   // optimizations
   bulkTransferScan: [transactionChange, 'bulk-transfer-scan'] as const,
+  workExpenseIntegration: ['work-expense-integration'] as const,
+  workExpenseSyncStatus: ['work-expense-sync-status'] as const,
+  workExpenseReconciliation: [transactionChange, 'work-expense-reconciliation'] as const,
 
   // vehicles
   vehiclesList: [transactionChange, 'vehicles-list'] as const,

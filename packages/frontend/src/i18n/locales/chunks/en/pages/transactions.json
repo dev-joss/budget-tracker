@@ -219,6 +219,23 @@
       "confirmDescription": "This action cannot be undone. Transfers will have both sides removed.",
       "successMessage": "{count} transactions deleted",
       "unexpectedError": "Failed to delete transactions. Please try again."
+    },
+    "workExpense": {
+      "indicator": "Work expense ({source})",
+      "indicatorWithReview": "Work expense ({source}) — review needed",
+      "sources": { "manual": "Manually marked", "expensify": "Expensify", "unknown": "Unknown source" },
+      "details": {
+        "marked": "Marked as a work expense ({source})",
+        "markedDescription": "This transaction is excluded from personal spending totals.",
+        "notMarked": "Not marked as a work expense",
+        "notMarkedDescription": "Mark this transaction when it is a reimbursable work expense.",
+        "reviewWarning": "This work-expense link needs review."
+      },
+      "actions": { "mark": "Mark as work expense", "unmark": "Unmark work expense" },
+      "notifications": {
+        "updated": "Work-expense classification updated",
+        "updateFailed": "Failed to update work-expense classification"
+      }
     }
   },
   "records": {

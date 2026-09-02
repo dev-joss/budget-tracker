@@ -70,6 +70,7 @@ import { useUserStore } from '@/stores';
 import { useElementSize } from '@vueuse/core';
 import {
   CalendarClockIcon,
+  BriefcaseBusinessIcon,
   ChevronRightIcon,
   CircleDollarSignIcon,
   HomeIcon,
@@ -193,6 +194,12 @@ const workspaceTabs = computed<Tab[]>(() => {
       label: t('settings.navigation.subscriptions'),
       to: { name: ROUTES_NAMES.settingsSubscriptions },
       icon: CalendarClockIcon,
+    },
+    {
+      name: 'work-expenses',
+      label: t('settings.navigation.workExpenses'),
+      to: { name: ROUTES_NAMES.settingsWorkExpenses },
+      icon: BriefcaseBusinessIcon,
     },
     {
       name: 'accounts',

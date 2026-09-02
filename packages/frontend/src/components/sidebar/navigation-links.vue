@@ -63,6 +63,7 @@ const isTransactionsRoute = computed(
     route.name === ROUTES_NAMES.optimizations ||
     route.name === ROUTES_NAMES.optimizationsTransfers ||
     route.name === ROUTES_NAMES.optimizationsAiCategorization ||
+    route.name === ROUTES_NAMES.optimizationsWorkExpenses ||
     route.name === ROUTES_NAMES.automations ||
     route.name === ROUTES_NAMES.automationCreate ||
     route.name === ROUTES_NAMES.automationDetails,
