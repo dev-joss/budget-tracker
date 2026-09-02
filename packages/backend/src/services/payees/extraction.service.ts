@@ -45,6 +45,14 @@ export function extractRawFromTransaction({
         return value;
       }
     }
+
+    const plaidData = externalData.plaid;
+    if (plaidData && typeof plaidData === 'object' && !Array.isArray(plaidData)) {
+      const merchantName = (plaidData as Record<string, unknown>).merchantName;
+      if (typeof merchantName === 'string' && merchantName.trim().length > 0) {
+        return merchantName;
+      }
+    }
   }
   return note ?? '';
 }

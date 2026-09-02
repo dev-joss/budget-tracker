@@ -49,7 +49,7 @@ export const mapPlaidTransaction = ({
     paymentType: paymentTypeForChannel({ channel: transaction.payment_channel }),
     time: activityTimeForPlaidTransaction({ transaction }),
     note: transaction.name,
-    rawMerchantName: transaction.merchant_name?.trim() || null,
+    rawMerchantName: transaction.merchant_name?.trim() || transaction.name.trim() || null,
     sourceData: {
       accountId: transaction.account_id,
       pending: transaction.pending,
