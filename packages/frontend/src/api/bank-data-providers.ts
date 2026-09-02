@@ -34,7 +34,7 @@ export interface BankConnection {
   bankName: string | null;
 }
 
-export interface PlaidConfiguration {
+interface PlaidConfiguration {
   configured: true;
   secretConfigured: true;
   clientId: string;

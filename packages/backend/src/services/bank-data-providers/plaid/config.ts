@@ -32,7 +32,7 @@ export interface PlaidConfig {
   transactionsDaysRequested: number;
 }
 
-export interface PlaidConfigurationInput {
+interface PlaidConfigurationInput {
   clientId: string;
   secret?: string;
   environment: 'sandbox' | 'production';
@@ -40,7 +40,7 @@ export interface PlaidConfigurationInput {
   transactionsDaysRequested: number;
 }
 
-export interface PlaidConfigurationView {
+interface PlaidConfigurationView {
   configured: true;
   secretConfigured: true;
   clientId: string;
