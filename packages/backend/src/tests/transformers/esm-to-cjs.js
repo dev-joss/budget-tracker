@@ -1,8 +1,8 @@
 /**
- * Jest runs the backend as CommonJS, so ESM-only dependencies — `mdb-reader`
- * (the Access/Money file reader behind the .mny importer) and `unpdf`'s pdf.js
- * bundle — die on their first `export` keyword or `await import()`. This compiles
- * them down to CommonJS so tests exercise the real libraries rather than stubs.
+ * Jest runs the backend as CommonJS, so ESM-only dependencies such as
+ * `mdb-reader`, `jose`, and `unpdf`'s pdf.js bundle fail on their first `export`
+ * keyword or `await import()`. This compiles them to CommonJS so tests exercise
+ * the real libraries rather than stubs.
  *
  * ts-jest cannot do this job: it compiles through a language service scoped to
  * the backend's tsconfig program, which emits nothing for files outside `src/`.
