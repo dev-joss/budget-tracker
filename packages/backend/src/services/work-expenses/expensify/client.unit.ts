@@ -26,6 +26,13 @@ describe('Expensify exporter contract', () => {
     expect(EXPENSIFY_EXPORT_TEMPLATE).not.toContain('${report.state');
   });
 
+  it('exports the modified expense amount when Expensify provides one', () => {
+    expect(EXPENSIFY_EXPORT_TEMPLATE).toContain('<#if expense.modifiedAmount?has_content>');
+    expect(EXPENSIFY_EXPORT_TEMPLATE).toContain('<#assign amount = expense.modifiedAmount>');
+    expect(EXPENSIFY_EXPORT_TEMPLATE).toContain('<#assign amount = expense.amount>');
+    expect(EXPENSIFY_EXPORT_TEMPLATE).toContain('"originalAmount":${amount?c},');
+  });
+
   it('builds the documented exporter request shape', () => {
     const description = buildExporterDescription({
       credentials: {
