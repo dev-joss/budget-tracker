@@ -285,6 +285,8 @@ export async function transformTransactions({
       linkedTransfer,
       subscription: subNameByTxId.get(tx.id) ?? '',
       isPlanned: tx.isPlanned,
+      isWorkExpense: tx.isWorkExpense,
+      workExpenseSource: tx.workExpenseSource,
     };
   });
 }

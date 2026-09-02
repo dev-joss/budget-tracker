@@ -24,6 +24,7 @@ import {
   type ExportFormat,
   type ExportGroup,
 } from '@bt/shared/types';
+import type { ExpensifyMatchState, ExpensifyReviewReason, WorkExpenseSource } from '@bt/shared/types';
 
 /**
  * Final on-disk row shape per file. All keys map 1:1 to CSV column headers
@@ -50,6 +51,8 @@ export interface TransactionRow {
   linkedTransfer: string;
   subscription: string;
   isPlanned: boolean;
+  isWorkExpense: boolean;
+  workExpenseSource: WorkExpenseSource | null;
 }
 
 export interface AccountRow {
@@ -197,6 +200,22 @@ export interface PortfolioTransferRow {
   note: string;
 }
 
+export interface WorkExpenseRow {
+  externalExpenseId: string;
+  externalReportId: string;
+  reportState: string;
+  amount: number;
+  currency: string;
+  expenseDate: string;
+  originalMerchant: string;
+  modifiedMerchant: string;
+  reimbursable: boolean;
+  matchState: ExpensifyMatchState;
+  linkedTransaction: string;
+  confirmedAt: string;
+  reviewReasons: ExpensifyReviewReason[];
+}
+
 /**
  * Discriminated union of per-file output. Each transformer returns one of these.
  * The writer modules dispatch on `name` to pick column ordering and formatting.
@@ -214,7 +233,8 @@ export type ExportTable =
   | { name: 'portfolios'; rows: PortfolioRow[] }
   | { name: 'holdings'; rows: HoldingRow[] }
   | { name: 'investment_transactions'; rows: InvestmentTransactionRow[] }
-  | { name: 'portfolio_transfers'; rows: PortfolioTransferRow[] };
+  | { name: 'portfolio_transfers'; rows: PortfolioTransferRow[] }
+  | { name: 'work_expenses'; rows: WorkExpenseRow[] };
 
 /**
  * Closed set of filenames that may appear inside the export zip. Pinning the

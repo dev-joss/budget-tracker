@@ -1,0 +1,13 @@
+[
+  {
+    "externalReportId": "R-1",
+    "reportState": "APPROVED",
+    "externalExpenseId": "E-1",
+    "originalAmount": 12345,
+    "originalCurrencyCode": "USD",
+    "expenseDate": "2026-08-14",
+    "originalMerchant": "A \"quoted\" merchant\nline two",
+    "modifiedMerchant": "Merchant & Co.",
+    "isReimbursable": true
+  }
+]

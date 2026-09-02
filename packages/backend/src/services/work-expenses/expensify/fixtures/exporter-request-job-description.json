@@ -1,0 +1,22 @@
+{
+  "type": "file",
+  "credentials": {
+    "partnerUserID": "fixture-user",
+    "partnerUserSecret": "fixture-secret"
+  },
+  "onReceive": {
+    "immediateResponse": ["returnRandomFileName"]
+  },
+  "inputSettings": {
+    "type": "combinedReportData",
+    "reportState": "SUBMITTED,APPROVED,REIMBURSED,ARCHIVED",
+    "filters": {
+      "startDate": "2026-01-01",
+      "endDate": "2026-01-31",
+      "reportIDList": "R-1,R-2"
+    }
+  },
+  "outputSettings": {
+    "fileExtension": "json"
+  }
+}

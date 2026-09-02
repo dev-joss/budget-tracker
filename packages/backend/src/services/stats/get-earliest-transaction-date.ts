@@ -2,6 +2,8 @@ import Accounts from '@models/accounts.model';
 import { findTransactions } from '@models/transactions-query';
 import { format } from 'date-fns';
 
+import { workExpenseExclusionWhere } from './stats-transactions';
+
 interface GetEarliestTransactionDateParams {
   userId: number;
 }
@@ -22,6 +24,7 @@ export const getEarliestTransactionDate = async ({
     access: { accessibleTo: userId },
     balanceAdjustments: 'include',
     completeness: 'probe',
+    where: workExpenseExclusionWhere(),
     include: [
       {
         model: Accounts,

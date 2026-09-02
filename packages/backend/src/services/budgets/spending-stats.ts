@@ -6,9 +6,9 @@ import Accounts from '@models/accounts.model';
 import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import TransactionSplits from '@models/transaction-splits.model';
-import { PlannedPolicy, transactionsInclude } from '@models/transactions-query';
+import { findTransactions, PlannedPolicy, transactionsInclude } from '@models/transactions-query';
 import * as Transactions from '@models/transactions.model';
-import { statsTransactions } from '@services/stats/stats-transactions';
+import { statsTransactions, workExpenseExclusionWhere } from '@services/stats/stats-transactions';
 import {
   addMonths,
   addWeeks,
@@ -467,7 +467,7 @@ const getManualBudgetSpendingStats = async ({
   callerUserId,
 }: {
   userId: number;
-  budgetId: string;
+  budgetId: RecordId;
   callerUserId: number;
 }): Promise<SpendingStatsResponse> => {
   const budgetDetails = await findOrThrowNotFound({
@@ -475,13 +475,13 @@ const getManualBudgetSpendingStats = async ({
     message: t({ key: 'budgets.budgetNotFound' }),
   });
 
-  const transactions = await Transactions.findWithFilters({
-    excludeTransfer: true,
-    budgetIds: [budgetId],
+  const transactions = await findTransactions({
+    transfers: 'exclude',
     completeness: 'all',
     planned: { visibleTo: callerUserId },
-    access: 'pre-scoped',
+    access: { budgetScoped: [budgetId] },
     balanceAdjustments: 'include',
+    where: workExpenseExclusionWhere(),
     attributes: ['id', 'time', 'refAmount', 'transactionType', 'categoryId', 'refundLinked', 'userId'],
   });
 
@@ -566,7 +566,7 @@ const getCategoryBudgetSpendingStats = async ({
   isOwner,
 }: {
   userId: number;
-  budgetId: string;
+  budgetId: RecordId;
   isOwner: boolean;
 }): Promise<SpendingStatsResponse> => {
   const budgetDetails = await findOrThrowNotFound({
@@ -637,6 +637,7 @@ const getCategoryBudgetSpendingStats = async ({
         where: {
           transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
           ...dateFilter,
+          ...workExpenseExclusionWhere({ transactionAlias: 'transaction' }),
         },
         attributes: ['id', 'time', 'transactionType', 'refundLinked'],
         include: [{ model: Accounts, where: { excludeFromStats: false }, attributes: [] }],
@@ -710,7 +711,7 @@ export const getBudgetSpendingStats = async ({
   budgetId,
 }: {
   userId: number;
-  budgetId: string;
+  budgetId: RecordId;
 }): Promise<SpendingStatsResponse> => {
   // Share-aware auth: recipient sees the same numbers the owner would (per PRD
   // visibility decision). Downstream queries scope against the owner's userId so

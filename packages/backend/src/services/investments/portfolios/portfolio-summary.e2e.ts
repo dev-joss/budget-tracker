@@ -16,7 +16,7 @@ import { AED_PER_USD, EUR_PER_USD } from '@tests/mocks/exchange-rates/data';
 // the cache with stale holding values.
 const DEDUP_CACHE_MS = 1100;
 
-const BUY_DATE = '2024-03-15';
+const BUY_DATE = '1998-03-15';
 const BUY_DATE_RATE_DATE = new Date(`${BUY_DATE}T00:00:00.000Z`);
 // The whole point of the fixture: USD buys 8 base units on the trade date but
 // only ~3.67 today, so a cost basis frozen at the trade-date rate and one

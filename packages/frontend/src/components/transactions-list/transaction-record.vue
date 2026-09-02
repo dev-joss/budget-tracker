@@ -131,6 +131,7 @@
             <PlannedIndicator :transaction="transaction" />
             <SplitIndicator :transaction="transaction" />
             <RefundIndicator :transaction="transaction" />
+            <WorkExpenseIndicator :transaction="transaction" />
             <TagsIndicator :transaction="transaction" />
           </div>
         </template>
@@ -210,6 +211,7 @@ import PlannedIndicator from './indicators/planned-indicator.vue';
 import RefundIndicator from './indicators/refund-indicator.vue';
 import SplitIndicator from './indicators/split-indicator.vue';
 import TagsIndicator from './indicators/tags-indicator.vue';
+import WorkExpenseIndicator from './indicators/work-expense-indicator.vue';
 
 const { t } = useI18n();
 

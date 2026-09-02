@@ -8,6 +8,7 @@ import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import { findTransactions } from '@models/transactions-query';
 import { withTransaction } from '@services/common/with-transaction';
+import { workExpenseExclusionWhere } from '@services/stats/stats-transactions';
 import { Op } from 'sequelize';
 
 import { expandCategoryIds } from './utils/expand-category-ids';
@@ -91,9 +92,14 @@ export const createBudget = withTransaction(async (payload: CreateBudgetPayload)
       balanceAdjustments: 'include',
       completeness: 'all',
       where: {
-        time: {
-          [Op.between]: [transactionFilters.startDate, transactionFilters.endDate],
-        },
+        [Op.and]: [
+          workExpenseExclusionWhere(),
+          {
+            time: {
+              [Op.between]: [transactionFilters.startDate, transactionFilters.endDate],
+            },
+          },
+        ],
       },
       attributes: ['id'],
     });

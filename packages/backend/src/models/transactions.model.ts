@@ -12,6 +12,8 @@ import {
   TRANSACTION_TYPES,
   TransactionCreatorSnapshot,
   TransactionModel,
+  WORK_EXPENSE_SOURCES,
+  type WorkExpenseSource,
 } from '@bt/shared/types';
 import { IdColumn } from '@common/types/id-column';
 import { Money } from '@common/types/money';
@@ -124,6 +126,8 @@ export interface TransactionsAttributes {
   originalCurrencyCode: string | null;
   refundLinked: boolean;
   isPlanned: boolean;
+  isWorkExpense: boolean;
+  workExpenseSource: WorkExpenseSource | null;
   categorizationMeta: CategorizationMeta | null;
   payeeId: string | null;
   payeeLocked: boolean;
@@ -294,6 +298,21 @@ export default class Transactions extends Model {
     defaultValue: false,
   })
   declare isPlanned: boolean;
+
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  })
+  declare isWorkExpense: boolean;
+
+  @Column({
+    type: DataType.STRING(20),
+    allowNull: true,
+    defaultValue: null,
+    validate: { isIn: [Object.values(WORK_EXPENSE_SOURCES)] },
+  })
+  declare workExpenseSource: WorkExpenseSource | null;
 
   // Metadata about how this transaction was categorized (manual, ai, mcc_rule, user_rule, subscription_rule, payee_rule)
   @Column({

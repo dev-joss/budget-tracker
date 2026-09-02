@@ -252,6 +252,12 @@ const routes: RouteRecordRaw[] = [
         meta: { i18nChunks: ['pages/optimizations', 'pages/transactions'] as I18nChunkName[] },
       },
       {
+        path: '/transactions/optimizations/work-expenses',
+        name: ROUTES_NAMES.optimizationsWorkExpenses,
+        component: () => import('@/pages/optimizations/work-expenses/index.vue'),
+        meta: { i18nChunks: ['pages/optimizations', 'pages/transactions'] as I18nChunkName[] },
+      },
+      {
         path: '/transactions/automations',
         name: ROUTES_NAMES.automations,
         component: () => import('@/pages/automations/index.vue'),
@@ -530,6 +536,12 @@ const routes: RouteRecordRaw[] = [
             name: ROUTES_NAMES.settingsSubscriptions,
             component: () => import('@/pages/settings/subpages/subscriptions/index.vue'),
             meta: { i18nChunks: ['settings/subscriptions'] as I18nChunkName[] },
+          },
+          {
+            path: 'work-expenses',
+            name: ROUTES_NAMES.settingsWorkExpenses,
+            component: () => import('@/pages/settings/subpages/work-expenses/index.vue'),
+            meta: { i18nChunks: ['settings/index', 'pages/optimizations'] as I18nChunkName[] },
           },
         ],
       },

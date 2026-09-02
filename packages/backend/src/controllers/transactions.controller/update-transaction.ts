@@ -5,6 +5,7 @@ import { createController } from '@controllers/helpers/controller-factory';
 import { removeUndefinedKeys } from '@js/helpers';
 import { serializeTransactionTuple } from '@root/serializers';
 import * as transactionsService from '@services/transactions';
+import { attachWorkExpenseMetadata } from '@services/work-expenses/attach-transaction-metadata';
 import { z } from 'zod';
 
 import { nonNegativeAmountSchema, positiveAmountSchema, splitSchema, transactionTimeSchema } from './schemas';
@@ -192,7 +193,13 @@ export default createController(schema, async ({ user, params, body }) => {
     ...(tagIds !== undefined ? { tagIds } : {}),
   });
 
+  await attachWorkExpenseMetadata({
+    transactions: [transactions[0], ...(transactions[1] ? [transactions[1]] : [])],
+  });
+
   // Serialize: convert cents to decimal for API response
   // updateTransaction returns [baseTx, oppositeTx?] tuple
-  return { data: serializeTransactionTuple(transactions) };
+  return {
+    data: serializeTransactionTuple(transactions),
+  };
 });

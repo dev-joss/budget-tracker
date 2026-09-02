@@ -1,13 +1,13 @@
-import { BUDGET_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
+import { BUDGET_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES, type RecordId } from '@bt/shared/types';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
 import Accounts from '@models/accounts.model';
 import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import TransactionSplits from '@models/transaction-splits.model';
-import { PlannedPolicy, transactionsInclude } from '@models/transactions-query';
+import { findTransactions, PlannedPolicy, transactionsInclude } from '@models/transactions-query';
 import * as Transactions from '@models/transactions.model';
-import { statsTransactions } from '@services/stats/stats-transactions';
+import { statsTransactions, workExpenseExclusionWhere } from '@services/stats/stats-transactions';
 import { Op } from 'sequelize';
 
 import { withTransaction } from '../common/with-transaction';
@@ -59,7 +59,7 @@ const getManualBudgetStats = async ({
   budgetId,
   callerUserId,
 }: {
-  budgetId: string;
+  budgetId: RecordId;
   callerUserId: number;
 }): Promise<StatsResponse> => {
   const budgetDetails = await findOrThrowNotFound({
@@ -70,13 +70,13 @@ const getManualBudgetStats = async ({
   const transactions: Pick<
     Transactions.default,
     'id' | 'time' | 'amount' | 'refAmount' | 'transactionType' | 'refundLinked'
-  >[] = await Transactions.findWithFilters({
-    excludeTransfer: true,
-    budgetIds: [budgetId],
+  >[] = await findTransactions({
+    transfers: 'exclude',
     completeness: 'all',
     planned: { visibleTo: callerUserId },
-    access: 'pre-scoped',
+    access: { budgetScoped: [budgetId] },
     balanceAdjustments: 'include',
+    where: workExpenseExclusionWhere(),
     attributes: ['id', 'time', 'amount', 'refAmount', 'transactionType', 'refundLinked'],
   });
 
@@ -145,6 +145,7 @@ const getCategoryBudgetStats = async ({
         where: {
           transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
           ...dateFilter,
+          ...workExpenseExclusionWhere({ transactionAlias: 'transaction' }),
         },
         attributes: ['id', 'time', 'transactionType', 'refundLinked'],
         include: [{ model: Accounts, where: { excludeFromStats: false }, attributes: [] }],
@@ -307,7 +308,7 @@ const aggregateTransactionStats = ({
 };
 
 export const getBudgetStats = withTransaction(
-  async ({ userId, budgetId }: { userId: number; budgetId: string }): Promise<StatsResponse> => {
+  async ({ userId, budgetId }: { userId: number; budgetId: RecordId }): Promise<StatsResponse> => {
     // Share-aware auth: recipient sees the same numbers the owner would (per PRD
     // visibility decision). Downstream queries scope against the owner's userId so
     // a recipient's unrelated transactions don't filter the result.

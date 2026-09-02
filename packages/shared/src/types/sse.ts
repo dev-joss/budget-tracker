@@ -4,6 +4,7 @@ import type { BaseCurrencyChangeStatus } from './currencies';
 import type { CsvImportProgress } from './import-export';
 import type { MsMoneyImportProgress } from './ms-money-import';
 import type { OfxImportProgress } from './ofx-import';
+import type { ExpensifySyncStatus } from './work-expenses';
 /**
  * Server-Sent Events (SSE) shared types
  *
@@ -24,6 +25,7 @@ export const SSE_EVENT_TYPES = {
   CSV_IMPORT_PROGRESS: 'csv_import_progress',
   BASE_CURRENCY_CHANGE_STATUS: 'base_currency_change_status',
   BACKUP_RESTORE_PROGRESS: 'backup_restore_progress',
+  WORK_EXPENSE_SYNC_PROGRESS: 'work_expense_sync_progress',
 } as const;
 
 export type SSEEventType = (typeof SSE_EVENT_TYPES)[keyof typeof SSE_EVENT_TYPES];
@@ -126,7 +128,8 @@ export type SSEEventPayload =
   | OfxImportProgress
   | CsvImportProgress
   | BaseCurrencyChangeStatus
-  | BackupRestoreSseProgress;
+  | BackupRestoreSseProgress
+  | ExpensifySyncStatus;
 
 /**
  * Maps each SSE event name to the payload its listeners receive. Lets a typed
@@ -145,4 +148,5 @@ export interface SSEEventPayloadMap {
   [SSE_EVENT_TYPES.CSV_IMPORT_PROGRESS]: CsvImportProgress;
   [SSE_EVENT_TYPES.BASE_CURRENCY_CHANGE_STATUS]: BaseCurrencyChangeStatus;
   [SSE_EVENT_TYPES.BACKUP_RESTORE_PROGRESS]: BackupRestoreSseProgress;
+  [SSE_EVENT_TYPES.WORK_EXPENSE_SYNC_PROGRESS]: ExpensifySyncStatus;
 }

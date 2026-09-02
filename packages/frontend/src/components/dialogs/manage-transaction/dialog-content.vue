@@ -52,6 +52,7 @@ import DestinationPanel from './components/destination-panel.vue';
 import LinkTransactionSection from './components/link-transaction-section.vue';
 import PlannedToggle from './components/planned-toggle.vue';
 import PlannedUnlockHint from './components/planned-unlock-hint.vue';
+import WorkExpenseControl from './components/work-expense-control.vue';
 import PortfolioLinkedView from './components/portfolio-linked-view.vue';
 import VehicleLinkedView from './components/vehicle-linked-view.vue';
 import VentureLinkedView from './components/venture-linked-view.vue';
@@ -469,6 +470,14 @@ const isPlannedToggleVisible = computed(() => {
 
 const isPlannedBadgeVisible = computed(
   () => !isFormCreation.value && Boolean(form.value.isPlanned) && !isSavedManualPlanTogglable.value,
+);
+
+const isWorkExpenseControlVisible = computed(
+  () =>
+    Boolean(transaction.value) &&
+    transaction.value?.transactionType === TRANSACTION_TYPES.expense &&
+    transaction.value.transferNature === TRANSACTION_TRANSFER_NATURE.not_transfer &&
+    !transaction.value.isPlanned,
 );
 
 // Real transactions on a bank-connected account come from the sync, so the account picker
@@ -1168,6 +1177,12 @@ onUnmounted(() => {
             :is-transfer-disabled="Boolean(form.isPlanned)"
             class="mb-6"
             @change-tx-type="selectTransactionType"
+          />
+
+          <WorkExpenseControl
+            v-if="isWorkExpenseControlVisible && transaction"
+            :transaction="transaction"
+            :can-edit="isMutable"
           />
 
           <div>

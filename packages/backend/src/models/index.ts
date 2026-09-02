@@ -15,6 +15,9 @@ import CategoriesModel from './categories.model';
 import { connection } from './connection';
 import CurrenciesModel from './currencies.model';
 import ExchangeRatesModel from './exchange-rates.model';
+import ExpensifyConnectionsModel from './expensify-connections.model';
+import ExpensifyExpensesModel from './expensify-expenses.model';
+import ExpensifyMatchCandidatesModel from './expensify-match-candidates.model';
 import HoldingsModel from './investments/holdings.model';
 import InvestmentTransactionModel from './investments/investment-transaction.model';
 import PortfolioBalancesModel from './investments/portfolio-balances.model';
@@ -85,6 +88,9 @@ const models = [
   CategoriesModel,
   CurrenciesModel,
   ExchangeRatesModel,
+  ExpensifyConnectionsModel,
+  ExpensifyExpensesModel,
+  ExpensifyMatchCandidatesModel,
   MerchantCategoryCodesModel,
   NotificationsModel,
   RefundTransactionsModel,

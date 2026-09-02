@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Card } from '@/components/lib/ui/card';
 import { ROUTES_NAMES } from '@/routes';
-import { ArrowRightLeftIcon, SparklesIcon } from '@lucide/vue';
+import { ArrowRightLeftIcon, BriefcaseBusinessIcon, SparklesIcon } from '@lucide/vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -18,6 +18,12 @@ const optimizations = [
     titleKey: 'optimizations.cards.aiCategorization.title',
     descriptionKey: 'optimizations.cards.aiCategorization.description',
     route: ROUTES_NAMES.optimizationsAiCategorization,
+  },
+  {
+    icon: BriefcaseBusinessIcon,
+    titleKey: 'optimizations.workExpenses.card.title',
+    descriptionKey: 'optimizations.workExpenses.card.description',
+    route: ROUTES_NAMES.optimizationsWorkExpenses,
   },
 ];
 </script>

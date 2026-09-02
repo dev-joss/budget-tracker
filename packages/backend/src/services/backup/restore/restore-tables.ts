@@ -126,6 +126,9 @@ function buildRowOverrides({
     const metadata = (row.metadata && typeof row.metadata === 'object' ? row.metadata : {}) as Row;
     overrides.metadata = { ...metadata, deactivationReason: DEACTIVATION_REASON.RESTORED };
   }
+  if (def.stripSecret === 'expensifyCredentials') {
+    overrides.encryptedCredentials = null;
+  }
 
   return overrides;
 }

@@ -21,10 +21,19 @@ type TimeBounds = { [Op.gte]?: Date; [Op.lte]?: Date };
 const lastWhere = () =>
   findTransactionsMock.mock.calls.at(-1)![0]!.where as unknown as { [Op.and]: unknown[] } | undefined;
 
+const findTimeBounds = (): TimeBounds => {
+  const fragment = lastWhere()![Op.and].find(
+    (candidate): candidate is { time: TimeBounds } =>
+      typeof candidate === 'object' && candidate !== null && 'time' in candidate,
+  );
+
+  return fragment!.time;
+};
+
 const readWindow = async ({ from, to }: { from?: string | Date; to?: string | Date }): Promise<TimeBounds> => {
   await statsTransactions({ access: { creator: 7 }, planned: 'exclude', refunds: 'ignore', window: { from, to } });
 
-  return (lastWhere()![Op.and][0] as { time: TimeBounds }).time;
+  return findTimeBounds();
 };
 
 beforeEach(() => {
@@ -63,9 +72,30 @@ describe('statsTransactions window bounds', () => {
     expect(bounds[Op.lte]).toBeUndefined();
   });
 
-  it('states no where at all for an unbounded window', async () => {
+  it('always applies the work-expense and linked-refund exclusion for an unbounded window', async () => {
     await statsTransactions({ access: { creator: 7 }, planned: 'exclude', refunds: 'ignore', window: {} });
 
-    expect(lastWhere()).toBeUndefined();
+    const exclusion = lastWhere()![Op.and][0] as { [Op.and]: Array<Record<string, unknown>> };
+
+    expect(exclusion[Op.and][0]).toEqual({ isWorkExpense: false });
+    expect((exclusion[Op.and][1] as unknown as { val: string }).val).toContain(
+      '"workExpenseOriginal"."isWorkExpense" = true',
+    );
+  });
+
+  it('does not let a caller override the work-expense exclusion', async () => {
+    await statsTransactions({
+      access: { creator: 7 },
+      planned: 'exclude',
+      refunds: 'ignore',
+      window: {},
+      where: { isWorkExpense: true },
+    });
+
+    const fragments = lastWhere()![Op.and];
+    const exclusion = fragments[0] as { [Op.and]: Array<Record<string, unknown>> };
+
+    expect(exclusion[Op.and][0]).toEqual({ isWorkExpense: false });
+    expect(fragments.at(-1)).toEqual({ isWorkExpense: true });
   });
 });

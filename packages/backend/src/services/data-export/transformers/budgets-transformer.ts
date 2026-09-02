@@ -7,6 +7,7 @@ import Categories from '@models/categories.model';
 import { findTransactions } from '@models/transactions-query';
 import Transactions from '@models/transactions.model';
 import { getBaseCurrency } from '@models/users-currencies.model';
+import { workExpenseExclusionWhere } from '@services/stats/stats-transactions';
 import { Op } from 'sequelize';
 
 import type { BudgetRow } from '../types';
@@ -45,7 +46,7 @@ export async function transformBudgets({ userId }: { userId: number }): Promise<
       ? // Export mirrors what the budget screen shows, and a budget counts every row
         // linked to it — so a linked plan is exported and summed like any other.
         findTransactions({
-          where: { id: { [Op.in]: transactionIds } },
+          where: { [Op.and]: [{ id: { [Op.in]: transactionIds } }, workExpenseExclusionWhere()] },
           planned: 'include',
           access: { creator: userId },
           balanceAdjustments: 'include',

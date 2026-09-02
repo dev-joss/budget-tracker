@@ -30,6 +30,7 @@
         </label>
 
         <PlannedIndicator compact hide-confirmed :transaction="tx" />
+        <WorkExpenseIndicator :transaction="tx" />
       </div>
     </td>
 
@@ -184,6 +185,7 @@ import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import PlannedIndicator from '@/components/transactions-list/indicators/planned-indicator.vue';
 import RefundIndicator from '@/components/transactions-list/indicators/refund-indicator.vue';
 import SplitIndicator from '@/components/transactions-list/indicators/split-indicator.vue';
+import WorkExpenseIndicator from '@/components/transactions-list/indicators/work-expense-indicator.vue';
 import { useOppositeTxRecord } from '@/composable/data-queries/opposite-tx-record';
 import type { BulkUnselectableReason } from '@/composable/transaction-selection';
 import { useTransactionPortfolioLink } from '@/composable/data-queries/portfolio-transfers';

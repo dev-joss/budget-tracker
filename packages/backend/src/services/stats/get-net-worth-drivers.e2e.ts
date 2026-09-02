@@ -96,6 +96,33 @@ const fundPortfolio = async ({ portfolioId, amount, date }: { portfolioId: strin
 
 describe('GET /stats/net-worth-drivers', () => {
   describe('savings', () => {
+    it('excludes work expenses from savings input', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 500,
+          transactionType: TRANSACTION_TYPES.income,
+          time: `${JAN.start}T10:00:00.000Z`,
+        }),
+        raw: true,
+      });
+      const [workExpense] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 200,
+          transactionType: TRANSACTION_TYPES.expense,
+          time: `${JAN.start}T11:00:00.000Z`,
+        }),
+        raw: true,
+      });
+      await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+      const { buckets } = await helpers.getNetWorthDrivers({ ...RANGE, raw: true });
+
+      expect(buckets[0]!.savings).toEqual({ income: 500, expenses: 0, net: 500 });
+    });
+
     it('reports income minus expenses per bucket', async () => {
       const account = await helpers.createAccount({ raw: true });
 

@@ -17,8 +17,6 @@ const config: KnipConfig = {
   ignore: [
     'config/**',
     'src/migrations/*.js',
-    // Loaded by oxlint via jsPlugins in .oxlintrc.json, not imported
-    'lint/**',
     // Barrel file re-exporting 3rd-party API types - @public is set on source files
     'src/services/bank-data-providers/enablebanking/types/index.ts',
   ],

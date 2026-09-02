@@ -11,6 +11,9 @@ import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import Currencies from '@models/currencies.model';
 import ExchangeRates from '@models/exchange-rates.model';
+import ExpensifyConnections from '@models/expensify-connections.model';
+import ExpensifyExpenses from '@models/expensify-expenses.model';
+import ExpensifyMatchCandidates from '@models/expensify-match-candidates.model';
 import Holdings from '@models/investments/holdings.model';
 import InvestmentTransaction from '@models/investments/investment-transaction.model';
 import PortfolioBalances from '@models/investments/portfolio-balances.model';
@@ -114,7 +117,7 @@ export interface BackupTableDef {
   /** Self-referential parent column needing the two-pass restore. */
   selfRefColumn?: string;
   /** Encrypted blob to blank before writing (undecryptable on another instance). */
-  stripSecret?: 'bankCredentials' | 'aiApiKeys';
+  stripSecret?: 'bankCredentials' | 'aiApiKeys' | 'expensifyCredentials';
   /** Attach the MCC's natural `code` so restore can remap the integer `mccId`. */
   enrichMccCode?: boolean;
   /** Drop a row on restore whose `currencyCode` isn't seeded on the target instance. */
@@ -137,8 +140,15 @@ export const BACKUP_TABLES: readonly BackupTableDef[] = [
     single: true,
     fields: ['defaultCategoryId', 'avatar', 'firstName', 'lastName', 'middleName', 'totalBalance'],
   },
-
   // tier 2
+  {
+    fileName: 'expensify-connections',
+    model: ExpensifyConnections,
+    tier: 2,
+    scope: { strategy: 'userColumn', column: 'userId' },
+    restoreMode: 'insert',
+    stripSecret: 'expensifyCredentials',
+  },
   {
     fileName: 'user-settings',
     model: UserSettings,
@@ -390,8 +400,14 @@ export const BACKUP_TABLES: readonly BackupTableDef[] = [
     scope: { strategy: 'userColumn', column: 'userId' },
     restoreMode: 'insert',
   },
-
   // tier 5
+  {
+    fileName: 'expensify-expenses',
+    model: ExpensifyExpenses,
+    tier: 5,
+    scope: { strategy: 'userColumn', column: 'userId' },
+    restoreMode: 'insert',
+  },
   {
     fileName: 'transaction-splits',
     model: TransactionSplits,
@@ -483,6 +499,13 @@ export const BACKUP_TABLES: readonly BackupTableDef[] = [
     model: SubscriptionPeriodNotifications,
     tier: 6,
     scope: { strategy: 'viaParent', fk: 'periodId', parent: 'subscriptionPeriods' },
+    restoreMode: 'insert',
+  },
+  {
+    fileName: 'expensify-match-candidates',
+    model: ExpensifyMatchCandidates,
+    tier: 6,
+    scope: { strategy: 'userColumn', column: 'userId' },
     restoreMode: 'insert',
   },
 

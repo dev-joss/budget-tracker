@@ -17,6 +17,59 @@ import { getResponseInitialState } from './stats';
  * - Edge cases
  */
 describe('Category-Based Budgets', () => {
+  it('excludes a work-expense split parent from every category-budget read', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const primaryCategory = await helpers.addCustomCategory({
+      name: 'Primary',
+      color: '#112233',
+      raw: true,
+    });
+    const budgetCategory = await helpers.addCustomCategory({
+      name: 'Budget category',
+      color: '#445566',
+      raw: true,
+    });
+    const [transaction] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 100,
+        categoryId: primaryCategory.id,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: '2025-04-10T10:00:00Z',
+        splits: [{ categoryId: budgetCategory.id, amount: 40 }],
+      }),
+      raw: true,
+    });
+    const budget = await helpers.createCustomBudget({
+      name: 'Personal category spend',
+      type: BUDGET_TYPES.category,
+      categoryIds: [budgetCategory.id],
+      startDate: '2025-04-01T00:00:00Z',
+      endDate: '2025-04-30T23:59:59Z',
+      raw: true,
+    });
+
+    await helpers.setTransactionWorkExpense({ id: transaction.id, isWorkExpense: true, raw: true });
+
+    const excludedStats = (await helpers.getStats({ id: budget.id, raw: true }))!;
+    const excludedSpending = await helpers.getSpendingStats({ id: budget.id, raw: true });
+    const excludedTransactions = await helpers.getCategoryBudgetTransactions({ id: budget.id, raw: true });
+
+    expect(excludedStats).toEqual(getResponseInitialState());
+    expect(excludedSpending.spendingsByCategory).toEqual([]);
+    expect(excludedSpending.spendingOverTime.periods).toEqual([]);
+    expect(excludedTransactions).toEqual({ transactions: [], total: 0 });
+
+    await helpers.setTransactionWorkExpense({ id: transaction.id, isWorkExpense: false, raw: true });
+
+    const restoredStats = (await helpers.getStats({ id: budget.id, raw: true }))!;
+    const restoredTransactions = await helpers.getCategoryBudgetTransactions({ id: budget.id, raw: true });
+    expect(restoredStats.summary.actualExpense).toBe(40);
+    expect(restoredStats.summary.transactionsCount).toBe(1);
+    expect(restoredTransactions.total).toBe(1);
+    expect(restoredTransactions.transactions[0]!.effectiveRefAmount).toBe(40);
+  });
+
   describe('Budget Creation', () => {
     it('successfully creates a category budget with single category', async () => {
       // Create a category

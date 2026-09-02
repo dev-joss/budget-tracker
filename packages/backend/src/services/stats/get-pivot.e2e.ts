@@ -6,6 +6,44 @@ import * as helpers from '@tests/helpers';
 const uniqueName = (prefix: string): string => `${prefix}-${generateRandomRecordId()}`;
 
 describe('GET /stats/pivot', () => {
+  it('excludes work expenses from pivot totals', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const category = await helpers.addCustomCategory({ name: uniqueName('Personal'), color: '#112233', raw: true });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 100,
+        transactionType: TRANSACTION_TYPES.expense,
+        categoryId: category.id,
+        time: '2025-06-10T12:00:00.000Z',
+      }),
+      raw: true,
+    });
+    const [workExpense] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 200,
+        transactionType: TRANSACTION_TYPES.expense,
+        categoryId: category.id,
+        time: '2025-06-15T12:00:00.000Z',
+      }),
+      raw: true,
+    });
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+    const result = await helpers.getPivotReport({
+      from: '2025-01-01',
+      to: '2025-12-31',
+      granularity: 'yearly',
+      rowDimension: 'category',
+      measure: 'expense',
+      raw: true,
+    });
+
+    expect(result.grandTotal).toBe(100);
+    expect(result.rows.find((row) => row.id === category.id)!.total).toBe(100);
+  });
+
   it('happy path: expenses by category across yearly buckets', async () => {
     const account = await helpers.createAccount({ raw: true });
     const category = await helpers.addCustomCategory({ name: uniqueName('Groceries'), color: '#112233', raw: true });

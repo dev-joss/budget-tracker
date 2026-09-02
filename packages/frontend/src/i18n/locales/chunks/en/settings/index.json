@@ -18,8 +18,78 @@
       "language": "Language",
       "general": "General",
       "payees": "Payees",
-      "subscriptions": "Scheduled payments"
+      "subscriptions": "Scheduled payments",
+      "workExpenses": "Work expenses"
     },
-    "backToSettings": "Back to Settings"
+    "backToSettings": "Back to Settings",
+    "workExpenses": {
+      "title": "Work expenses",
+      "description": "Connect Expensify to import and match reimbursable work expenses charged to your personal cards.",
+      "loadError": {
+        "title": "Couldn't load integration status",
+        "description": "Try again to load your Expensify integration."
+      },
+      "disconnected": {
+        "title": "Connect Expensify",
+        "description": "Enter your employee credentials to import reimbursable work expenses."
+      },
+      "connected": {
+        "title": "Expensify is connected",
+        "description": "Your reimbursable work expenses are imported when you sync."
+      },
+      "form": {
+        "partnerUserId": { "label": "Partner user ID", "placeholder": "Enter your partner user ID" },
+        "partnerUserSecret": { "label": "Partner user secret", "placeholder": "Enter your partner user secret" },
+        "initialSyncDate": { "label": "Import expenses from", "hint": "Expenses before this date are not imported." }
+      },
+      "status": {
+        "initialSyncDate": "Initial sync date",
+        "lastSuccessfulSync": "Last successful sync",
+        "lastAttemptedSync": "Last attempted sync",
+        "syncState": "Sync status"
+      },
+      "syncStates": {
+        "idle": "Not syncing",
+        "queued": "Queued",
+        "processing": "Syncing",
+        "completed": "Completed",
+        "failed": "Failed"
+      },
+      "syncProgress": {
+        "title": "Sync progress",
+        "processed": "Processed",
+        "imported": "Imported",
+        "matched": "Matched",
+        "review": "Needs review"
+      },
+      "safeError": { "title": "Expensify sync issue" },
+      "errors": {
+        "authentication": "Expensify credentials were rejected.",
+        "rate_limited": "Expensify temporarily limited requests. Try again later.",
+        "unavailable": "Expensify is unavailable. Try again later.",
+        "invalid_response": "Expensify returned an invalid response.",
+        "disconnected": "The Expensify integration is disconnected.",
+        "credentials_changed": "The Expensify credentials changed. Start a new sync."
+      },
+      "actions": {
+        "connect": "Connect Expensify",
+        "syncNow": "Sync now",
+        "reviewMatches": "Review matches",
+        "disconnect": "Disconnect"
+      },
+      "disconnect": {
+        "title": "Disconnect Expensify?",
+        "description": "Your imported expenses and work-expense classifications will be kept, but future syncing will stop.",
+        "confirm": "Disconnect"
+      },
+      "notifications": {
+        "connected": "Expensify connected",
+        "connectFailed": "Failed to connect Expensify",
+        "disconnected": "Expensify disconnected",
+        "disconnectFailed": "Failed to disconnect Expensify",
+        "syncStarted": "Expensify sync started",
+        "syncFailed": "Failed to start Expensify sync"
+      }
+    }
   }
 }

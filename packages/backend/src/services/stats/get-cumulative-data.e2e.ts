@@ -7,6 +7,44 @@ import * as helpers from '@tests/helpers';
 const JAN = { from: '2026-01-01', to: '2026-01-31' };
 
 describe('GET /stats/cumulative', () => {
+  it('excludes work expenses from cumulative expense and savings totals', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 500,
+        transactionType: TRANSACTION_TYPES.income,
+        time: '2026-01-05T12:00:00.000Z',
+      }),
+      raw: true,
+    });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 100,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: '2026-01-10T12:00:00.000Z',
+      }),
+      raw: true,
+    });
+    const [workExpense] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 200,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: '2026-01-15T12:00:00.000Z',
+      }),
+      raw: true,
+    });
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+    const expenses = await helpers.getCumulativeData({ ...JAN, metric: 'expenses', raw: true });
+    const savings = await helpers.getCumulativeData({ ...JAN, metric: 'savings', raw: true });
+
+    expect(expenses.currentPeriod.total).toBe(100);
+    expect(savings.currentPeriod.total).toBe(400);
+  });
+
   it('excludes planned rows from both the expense and the income cumulative totals', async () => {
     const account = await helpers.createAccount({ raw: true });
 
