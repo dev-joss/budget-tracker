@@ -15,7 +15,7 @@ export function isEligibleUpstreamExpense({ expense }: { expense: ExpensifyUpstr
   );
 }
 
-export function effectiveUpstreamMerchant({ expense }: { expense: ExpensifyUpstreamExpense }): string {
+function effectiveUpstreamMerchant({ expense }: { expense: ExpensifyUpstreamExpense }): string {
   return expense.modifiedMerchant?.trim() || expense.originalMerchant;
 }
 

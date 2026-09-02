@@ -26,7 +26,7 @@ export interface MatchableTransaction {
   merchant: string;
 }
 
-export interface CandidateScore {
+interface CandidateScore {
   compositeScoreBps: number;
   merchantSimilarityBps: number;
   dateDistance: number;
@@ -39,12 +39,12 @@ export interface CandidateEdge extends CandidateScore {
   transactionId: RecordId;
 }
 
-export interface RankedCandidateEdge extends CandidateEdge {
+interface RankedCandidateEdge extends CandidateEdge {
   rank: number;
   isReciprocalTop: boolean;
 }
 
-export interface ClassifiedExpenseCandidates {
+interface ClassifiedExpenseCandidates {
   expenseId: RecordId;
   state: ExpensifyMatchState;
   candidates: RankedCandidateEdge[];

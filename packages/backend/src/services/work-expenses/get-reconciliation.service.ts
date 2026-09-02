@@ -31,7 +31,7 @@ function serializeExpense({ expense }: { expense: ExpensifyExpenses }) {
   };
 }
 
-export async function buildReconciliationItems({
+async function buildReconciliationItems({
   userId,
   expenses,
 }: {

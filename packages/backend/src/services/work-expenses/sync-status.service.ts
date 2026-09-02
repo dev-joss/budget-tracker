@@ -14,11 +14,11 @@ export interface SynchronizationOwner extends SynchronizationScope {
   synchronizationRunId: RecordId;
 }
 
-export interface SynchronizationStatusEnvelope extends SynchronizationScope {
+interface SynchronizationStatusEnvelope extends SynchronizationScope {
   status: Exclude<ExpensifySyncStatus, { status: 'idle' }>;
 }
 
-export const buildSynchronizationStatusKey = ({ userId }: { userId: number }): string =>
+const buildSynchronizationStatusKey = ({ userId }: { userId: number }): string =>
   `work-expenses-sync-status-${userId}`;
 
 export const buildSynchronizationLockKey = ({ userId }: { userId: number }): string =>

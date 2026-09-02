@@ -26,7 +26,7 @@ function uniqueReasons({ reasons }: { reasons: ExpensifyReviewReason[] }): Expen
   return [...new Set(reasons)];
 }
 
-export function deduplicateUpstreamExpenses({
+function deduplicateUpstreamExpenses({
   expenses,
 }: {
   expenses: ExpensifyUpstreamExpense[];

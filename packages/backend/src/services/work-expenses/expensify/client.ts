@@ -11,13 +11,13 @@ import { z } from 'zod';
 
 import { EXPENSIFY_EXPORT_TEMPLATE } from './template';
 
-export const EXPENSIFY_INTEGRATION_URL = 'https://integrations.expensify.com/Integration-Server/ExpensifyIntegrations';
+const EXPENSIFY_INTEGRATION_URL = 'https://integrations.expensify.com/Integration-Server/ExpensifyIntegrations';
 
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_FILENAME_LENGTH = 160;
 const MAX_ERROR_ENVELOPE_BYTES = 1_024;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
-export const MAX_EXPENSES_PER_EXPORT = 10_000;
+const MAX_EXPENSES_PER_EXPORT = 10_000;
 const MAX_RETRY_ATTEMPTS = 3;
 const MAX_AMOUNT_CENTS = 9_000_000_000_000;
 const EXPENSIFY_REQUEST_INTERVAL_MS = 3_200;
@@ -140,7 +140,7 @@ function safeErrorCode({ error }: { error: unknown }): ExpensifySafeErrorCode {
   return EXPENSIFY_SAFE_ERROR_CODES.unavailable;
 }
 
-export function isRetryableExpensifyError({ error }: { error: unknown }): boolean {
+function isRetryableExpensifyError({ error }: { error: unknown }): boolean {
   if (!axios.isAxiosError(error)) return false;
   if (!error.response) return true;
   return error.response.status === 429 || error.response.status >= 500;

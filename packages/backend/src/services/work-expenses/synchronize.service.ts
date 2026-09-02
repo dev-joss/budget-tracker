@@ -16,7 +16,7 @@ interface DateWindow {
   endDate: string;
 }
 
-export function splitDiscoveryWindows({ startDate, endDate }: { startDate: string; endDate: string }): DateWindow[] {
+function splitDiscoveryWindows({ startDate, endDate }: { startDate: string; endDate: string }): DateWindow[] {
   const windows: DateWindow[] = [];
   let cursor = parseISO(startDate);
   const last = parseISO(endDate);
