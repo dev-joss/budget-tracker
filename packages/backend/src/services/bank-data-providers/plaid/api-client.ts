@@ -9,7 +9,7 @@ interface PlaidErrorBody {
   request_id?: string;
 }
 
-export interface NormalizedPlaidError {
+interface NormalizedPlaidError {
   code?: string;
   message: string;
   requestId?: string;

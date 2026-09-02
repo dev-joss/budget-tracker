@@ -107,10 +107,3 @@ export const enqueuePlaidSync = async ({
     { jobId: connectionId, removeOnComplete: true, removeOnFail: 100 },
   );
 };
-
-export const closePlaidSyncQueue = async (): Promise<void> => {
-  await worker?.close();
-  await queue?.close();
-  worker = undefined;
-  queue = undefined;
-};

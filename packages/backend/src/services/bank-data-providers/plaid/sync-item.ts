@@ -15,7 +15,7 @@ import { readPlaidConfig } from './config';
 import { mapPlaidAccount, mapPlaidTransaction } from './transaction-mapper';
 import type { PlaidConnectionMetadata, PlaidCredentials } from './types';
 
-export interface PlaidSyncChanges {
+interface PlaidSyncChanges {
   added: Transaction[];
   modified: Transaction[];
   removed: RemovedTransaction[];

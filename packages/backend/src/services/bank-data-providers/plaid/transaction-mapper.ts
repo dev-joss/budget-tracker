@@ -2,7 +2,7 @@ import { PAYMENT_TYPES, TRANSACTION_TYPES } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import type { AccountBase, Transaction } from 'plaid';
 
-export interface MappedPlaidTransaction {
+interface MappedPlaidTransaction {
   originalId: string;
   accountExternalId: string;
   amount: Money;

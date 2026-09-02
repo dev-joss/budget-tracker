@@ -146,7 +146,7 @@ export const disconnectProvider = async ({
   return response;
 };
 
-export type ReauthorizationResponse = ({ authUrl: string } | { linkToken: string }) & { message: string };
+type ReauthorizationResponse = ({ authUrl: string } | { linkToken: string }) & { message: string };
 
 export const reauthorizeConnection = async ({
   connectionId,
