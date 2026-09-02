@@ -49,6 +49,7 @@ import userRoutes from './routes/user.route';
 import vehiclesRoutes from './routes/vehicles.route';
 import ventureRoutes from './routes/venture.route';
 import webhooksRoutes from './routes/webhooks.route';
+import workExpensesRoutes from './routes/work-expenses.route';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (_req: Request, res: Response) => {
@@ -172,6 +173,7 @@ export function setupRoutes(app: Express) {
   app.use(`${API_PREFIX}/user`, userRoutes);
   app.use(`${API_PREFIX}/accounts`, accountsRoutes);
   app.use(`${API_PREFIX}/transactions`, transactionsRoutes);
+  app.use(`${API_PREFIX}/work-expenses`, workExpensesRoutes);
   app.use(`${API_PREFIX}/categories`, categoriesRoutes);
   app.use(`${API_PREFIX}/models/currencies`, modelsCurrenciesRoutes);
   app.use(`${API_PREFIX}/bank-data-providers`, bankDataProvidersRoutes);

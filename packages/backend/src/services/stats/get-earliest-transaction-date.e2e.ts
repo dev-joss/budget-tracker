@@ -58,4 +58,37 @@ describe('[Stats] Get earliest transaction date', () => {
 
     expect(await helpers.getEarliestTransactionDate({ raw: true })).toBe(format(adjustmentDate, 'yyyy-MM-dd'));
   }, 60_000);
+
+  it('does not let work-only history extend the personal analytics date range', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const workDate = subDays(new Date(), 60);
+    const personalDate = subDays(new Date(), 20);
+
+    const [workExpense] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 200,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: workDate.toISOString(),
+      }),
+      raw: true,
+    });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 100,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: personalDate.toISOString(),
+      }),
+      raw: true,
+    });
+
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+    expect(await helpers.getEarliestTransactionDate({ raw: true })).toBe(format(personalDate, 'yyyy-MM-dd'));
+
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: false, raw: true });
+
+    expect(await helpers.getEarliestTransactionDate({ raw: true })).toBe(format(workDate, 'yyyy-MM-dd'));
+  });
 });

@@ -65,6 +65,12 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   'PUT /api/v1/user/settings/onboarding',
   'PUT /api/v1/user/update',
 
+  // Integration credentials and synchronization metadata never change reference money.
+  'DELETE /api/v1/work-expenses/integration',
+  'DELETE /api/v1/work-expenses/matches/:expenseId',
+  'POST /api/v1/work-expenses/sync',
+  'PUT /api/v1/work-expenses/integration',
+
   // AI categorization writes categoryId/categorizationMeta only, never ref amounts,
   // so a base-currency migration and a run cannot corrupt each other.
   'POST /api/v1/user/ai/categorization/trigger',

@@ -19,6 +19,8 @@ const EXPECTED_GUARDED_COLUMNS: Record<string, string[]> = {
   'budget-categories': ['budgetId', 'categoryId'],
   'budget-transactions': ['budgetId', 'transactionId'],
   categories: ['parentId'],
+  'expensify-expenses': ['linkedTransactionId'],
+  'expensify-match-candidates': ['expenseId', 'transactionId'],
   holdings: ['portfolioId'],
   'investment-transactions': ['portfolioId'],
   'loan-details': ['accountId'],

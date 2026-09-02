@@ -24,6 +24,10 @@ import {
 } from '@services/sharing/auth/authorize-account-write.service';
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
 import * as refundsService from '@services/tx-refunds';
+import {
+  captureLinkedExpenseBeforeEdit,
+  flagLinkedExpenseAfterEdit,
+} from '@services/work-expenses/local-edit-review.service';
 
 import { withTransaction } from '../common/with-transaction';
 import { calcTransferTransactionRefAmount, createOppositeTransaction } from './create-transaction';
@@ -559,6 +563,7 @@ export const updateTransaction = withTransaction(
         id: payload.id,
         userId: payload.userId,
       });
+      const linkedExpenseBeforeEdit = await captureLinkedExpenseBeforeEdit({ transaction: prevData });
 
       const ctx: UpdateAuthContext = {
         callerUserId: payload.userId,
@@ -736,6 +741,11 @@ export const updateTransaction = withTransaction(
           }
         }
       }
+
+      await flagLinkedExpenseAfterEdit({
+        captured: linkedExpenseBeforeEdit,
+        transaction: updatedTransactions[0],
+      });
 
       return updatedTransactions;
     } catch (e) {

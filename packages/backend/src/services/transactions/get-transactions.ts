@@ -4,6 +4,7 @@ import * as Transactions from '@models/transactions.model';
 import Users from '@models/users.model';
 import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { getAccessibleBudgetIdsForUser } from '@services/sharing/auth/get-accessible-budget-ids.service';
+import { attachWorkExpenseMetadata } from '@services/work-expenses/attach-transaction-metadata';
 import { Op } from 'sequelize';
 
 type FindWithFiltersParams = Parameters<typeof Transactions.findWithFilters>[0];
@@ -125,7 +126,8 @@ export const getTransactions = async (params: GetTransactionsParams) => {
     isRaw,
   });
 
-  if (!transactions.length || !budgetGrantsVisibility) return transactions;
+  if (!transactions.length) return transactions;
+  if (!budgetGrantsVisibility) return attachWorkExpenseMetadata({ transactions });
 
   // Budget-scoped fetch — enrich each row with `addedBy` so the UI can label recipient
   // contributions. Owner-attached rows leave `metadata` null in the junction, so they
@@ -137,7 +139,8 @@ export const getTransactions = async (params: GetTransactionsParams) => {
   // account. Instead, the FE checks edit access lazily on dialog open via
   // GET /transactions/:id (which surfaces `canEdit` for free from the already-resolved
   // access result) when the parent account isn't in its local `accountsRecord`.
-  return attachAddedByMetadata({ transactions, budgetIds: scopedBudgetIds! });
+  const withAddedBy = await attachAddedByMetadata({ transactions, budgetIds: scopedBudgetIds! });
+  return attachWorkExpenseMetadata({ transactions: withAddedBy });
 };
 
 const attachAddedByMetadata = async <T extends { id: string }>({

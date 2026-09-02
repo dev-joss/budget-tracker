@@ -182,6 +182,47 @@ describe('[Stats] Spendings by categories – groupByType', () => {
 });
 
 describe('[Stats] Spendings by categories', () => {
+  it('excludes work expenses from expense history, category totals, and period totals', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const category = await helpers.addCustomCategory({ name: uniqueName('Personal'), color: '#112233', raw: true });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 100,
+        categoryId: category.id,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: '2025-06-10T12:00:00.000Z',
+      }),
+      raw: true,
+    });
+    const [workExpense] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 200,
+        categoryId: category.id,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: '2025-06-15T12:00:00.000Z',
+      }),
+      raw: true,
+    });
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+    const categoryTotals = await helpers.getSpendingsByCategories({
+      from: '2025-06-01',
+      to: '2025-06-30',
+      categoryIds: [category.id],
+      raw: true,
+    });
+    const periodTotal = await helpers.getExpensesAmountForPeriod({
+      from: '2025-06-01',
+      to: '2025-06-30',
+      raw: true,
+    });
+
+    expect(categoryTotals[category.id]!.amount).toBe(100);
+    expect(periodTotal).toBe(100);
+  });
+
   it('Returns correct list of data for simple transactions list', async () => {
     const account = await helpers.createAccount({ raw: true });
     const payload = helpers.buildTransactionPayload({

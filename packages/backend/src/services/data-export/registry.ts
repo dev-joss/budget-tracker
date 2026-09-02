@@ -13,6 +13,7 @@ import { transformTags } from './transformers/tags-transformer';
 import { transformTransactionTemplates } from './transformers/transaction-templates-transformer';
 import { transformTransactions } from './transformers/transactions-transformer';
 import { transformVehicles } from './transformers/vehicles-transformer';
+import { transformWorkExpenses } from './transformers/work-expenses-transformer';
 import type { ExportDateRange, ExportFileName, ExportGroup, ExportTable } from './types';
 
 /**
@@ -125,6 +126,8 @@ export const EXPORT_DOMAINS: ReadonlyArray<ExportDomainBase> = [
       { header: 'LinkedTransfer', field: 'linkedTransfer', kind: 'text' },
       { header: 'Subscription', field: 'subscription', kind: 'text' },
       { header: 'Planned', field: 'isPlanned', kind: 'boolean' },
+      { header: 'WorkExpense', field: 'isWorkExpense', kind: 'boolean' },
+      { header: 'WorkExpenseSource', field: 'workExpenseSource', kind: 'text' },
     ],
   }),
   defineDomain({
@@ -287,6 +290,26 @@ export const EXPORT_DOMAINS: ReadonlyArray<ExportDomainBase> = [
       { header: 'Amount', field: 'amount', kind: 'money' },
       { header: 'Currency', field: 'currency', kind: 'text' },
       { header: 'Note', field: 'note', kind: 'text' },
+    ],
+  }),
+  defineDomain({
+    name: 'work_expenses',
+    group: 'transactions',
+    build: ({ userId }) => transformWorkExpenses({ userId }),
+    columns: [
+      { header: 'ExternalExpenseId', field: 'externalExpenseId', kind: 'text' },
+      { header: 'ExternalReportId', field: 'externalReportId', kind: 'text' },
+      { header: 'ReportState', field: 'reportState', kind: 'text' },
+      { header: 'Amount', field: 'amount', kind: 'money' },
+      { header: 'Currency', field: 'currency', kind: 'text' },
+      { header: 'ExpenseDate', field: 'expenseDate', kind: 'date' },
+      { header: 'OriginalMerchant', field: 'originalMerchant', kind: 'text' },
+      { header: 'ModifiedMerchant', field: 'modifiedMerchant', kind: 'text' },
+      { header: 'Reimbursable', field: 'reimbursable', kind: 'boolean' },
+      { header: 'MatchState', field: 'matchState', kind: 'text' },
+      { header: 'LinkedTransaction', field: 'linkedTransaction', kind: 'text' },
+      { header: 'ConfirmedAt', field: 'confirmedAt', kind: 'date' },
+      { header: 'ReviewReasons', field: 'reviewReasons', kind: 'array' },
     ],
   }),
 ];

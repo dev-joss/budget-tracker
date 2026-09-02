@@ -116,6 +116,9 @@ async function dumpTable({
   if (def.stripSecret === 'bankCredentials') {
     for (const row of rows) row.credentials = null;
   }
+  if (def.stripSecret === 'expensifyCredentials') {
+    for (const row of rows) row.encryptedCredentials = null;
+  }
   if (def.enrichMccCode) await attachMccCodes({ rows });
 
   return { path: `data/${def.fileName}.json`, rows: rows.length, buffer: toBuffer({ value: rows }) };

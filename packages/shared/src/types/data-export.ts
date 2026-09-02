@@ -5,7 +5,7 @@
  */
 
 /** Bump when the on-disk shape of an export changes in a backwards-incompatible way. */
-export const EXPORT_SCHEMA_VERSION = 1;
+export const EXPORT_SCHEMA_VERSION = 2;
 
 export const EXPORT_FORMATS = ['json', 'csv', 'xlsx'] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -33,6 +33,7 @@ export const EXPORT_FILE_NAMES = [
   'holdings',
   'investment_transactions',
   'portfolio_transfers',
+  'work_expenses',
 ] as const;
 export type ExportFileName = (typeof EXPORT_FILE_NAMES)[number];
 

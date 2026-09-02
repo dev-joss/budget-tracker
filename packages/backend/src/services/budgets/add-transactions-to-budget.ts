@@ -6,6 +6,7 @@ import BudgetTransactions, { BudgetTransactionMetadata } from '@models/budget-tr
 import Budgets from '@models/budget.model';
 import { findTransactions } from '@models/transactions-query';
 import { withTransaction } from '@services/common/with-transaction';
+import { workExpenseExclusionWhere } from '@services/stats/stats-transactions';
 import { Op } from 'sequelize';
 
 import { authorizeBudgetAccess } from './authorize-budget-access';
@@ -49,7 +50,9 @@ export const addTransactionsToBudget = withTransaction(async (payload: AddTransa
     access: { creator: txOwnerUserId },
     balanceAdjustments: 'include',
     completeness: 'all',
-    where: { id: { [Op.in]: transactionIds } },
+    where: {
+      [Op.and]: [workExpenseExclusionWhere(), { id: { [Op.in]: transactionIds } }],
+    },
     attributes: ['id'],
   });
 

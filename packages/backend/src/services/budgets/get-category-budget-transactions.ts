@@ -8,7 +8,7 @@ import Categories from '@models/categories.model';
 import TransactionSplits from '@models/transaction-splits.model';
 import { PlannedPolicy, transactionsInclude } from '@models/transactions-query';
 import * as Transactions from '@models/transactions.model';
-import { statsTransactions } from '@services/stats/stats-transactions';
+import { statsTransactions, workExpenseExclusionWhere } from '@services/stats/stats-transactions';
 import { Op } from 'sequelize';
 
 import { authorizeBudgetRead } from './authorize-budget-access';
@@ -83,6 +83,7 @@ export const getCategoryBudgetTransactions = async ({
         where: {
           transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
           ...dateFilter,
+          ...workExpenseExclusionWhere({ transactionAlias: 'transaction' }),
         },
         attributes: ['id', 'time', 'transactionType', 'note', 'accountId'],
         include: [{ model: Accounts, where: { excludeFromStats: false }, attributes: [] }],

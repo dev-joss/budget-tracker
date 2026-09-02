@@ -28,6 +28,7 @@ import {
   subscriptionReminderEmailWorker,
 } from '@services/subscriptions/reminder-email-queue';
 import { createAppUserWithUniqueUsername, seedUserDefaults } from '@services/user/create-user-with-defaults.service';
+import { workExpenseSynchronizationQueue, workExpenseSynchronizationWorker } from '@services/work-expenses/sync-queue';
 import { extractCookies, makeAuthRequest, makeRequest } from '@tests/helpers';
 import { startOfDay } from 'date-fns';
 
@@ -483,6 +484,8 @@ afterAll(async () => {
     await subscriptionReminderEmailQueue.close();
     await baseCurrencyChangeWorker.close();
     await baseCurrencyChangeQueue.close();
+    await workExpenseSynchronizationWorker.close();
+    await workExpenseSynchronizationQueue.close();
 
     // Now safe to close Redis client
     await redisClient.quit();

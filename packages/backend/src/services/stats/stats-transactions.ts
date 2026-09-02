@@ -2,7 +2,7 @@ import Accounts from '@models/accounts.model';
 import { AccessPolicy, PlannedPolicy, findTransactions } from '@models/transactions-query';
 import Transactions from '@models/transactions.model';
 import { endOfDay } from 'date-fns';
-import { FindAttributeOptions, Includeable, Op, Order, WhereOptions } from 'sequelize';
+import { FindAttributeOptions, Includeable, literal, Op, Order, WhereOptions } from 'sequelize';
 
 import { CategoryRefundPair, resolveRefundPairs } from './category-allocation';
 
@@ -14,7 +14,7 @@ import { CategoryRefundPair, resolveRefundPairs } from './category-allocation';
  *
  * Baked in, not negotiable per call site: transfer legs are out (they move money between the
  * user's own accounts), accounts flagged `excludeFromStats` are out (INNER JOIN), and
- * balance-adjustment rows are out.
+ * balance-adjustment rows are out, and work expenses plus their merchant refunds are out.
  */
 type StatsRefundsPolicy =
   | 'net' // caller nets refunds itself: rows come back with their refund pairs resolved
@@ -51,6 +51,31 @@ export interface StatsTransactionsResult {
    */
   refundPairs: CategoryRefundPair[];
 }
+
+/**
+ * Excludes transaction rows that belong to work spending from personal reports.
+ *
+ * A merchant refund linked to a work expense is also work-related reporting input even when the
+ * refund row itself has no classification. The alias is explicit because budget split queries use
+ * this fragment inside their `transaction` include instead of against the root Transactions model.
+ */
+export const workExpenseExclusionWhere = ({
+  transactionAlias = 'Transactions',
+}: {
+  transactionAlias?: 'Transactions' | 'transaction';
+} = {}): WhereOptions => ({
+  [Op.and]: [
+    { isWorkExpense: false },
+    literal(`NOT EXISTS (
+      SELECT 1
+      FROM "RefundTransactions" AS "workExpenseRefundLink"
+      INNER JOIN "Transactions" AS "workExpenseOriginal"
+        ON "workExpenseOriginal"."id" = "workExpenseRefundLink"."originalTxId"
+      WHERE "workExpenseRefundLink"."refundTxId" = "${transactionAlias}"."id"
+        AND "workExpenseOriginal"."isWorkExpense" = true
+    )`),
+  ],
+});
 
 /**
  * A `to` day string is stretched to end-of-day only when `from` bounds the other side; an
@@ -90,6 +115,7 @@ export const statsTransactions = async ({
   // overwrite (or be overwritten by) the window and refund fragments.
   const timeWhere = windowWhere({ window });
   const fragments: WhereOptions[] = [
+    workExpenseExclusionWhere(),
     ...(timeWhere ? [timeWhere] : []),
     ...(refunds === 'exclude-refund-rows' ? [{ refundLinked: false }] : []),
     ...(where ? [where] : []),

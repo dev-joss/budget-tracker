@@ -7,6 +7,52 @@ import * as helpers from '@tests/helpers';
 import { getResponseInitialState } from './stats';
 
 describe('Get budget stats', () => {
+  it('hides an attached work expense without deleting its budget link', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const [personalExpense] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 100,
+        transactionType: TRANSACTION_TYPES.expense,
+      }),
+      raw: true,
+    });
+    const [workExpense] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 200,
+        transactionType: TRANSACTION_TYPES.expense,
+      }),
+      raw: true,
+    });
+    const budget = await helpers.createCustomBudget({ name: 'Personal expenses', raw: true });
+    await helpers.addTransactionToCustomBudget({
+      id: budget.id,
+      payload: { transactionIds: [personalExpense.id, workExpense.id] },
+      raw: true,
+    });
+
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+    const excluded = (await helpers.getStats({ id: budget.id, raw: true }))!;
+    const excludedSpending = await helpers.getSpendingStats({ id: budget.id, raw: true });
+    expect(excluded.summary.actualExpense).toBe(100);
+    expect(excluded.summary.transactionsCount).toBe(1);
+    expect(excludedSpending.spendingsByCategory).toHaveLength(1);
+    expect(excludedSpending.spendingsByCategory[0]!.amount).toBe(100);
+
+    const linkedTransactions = await helpers.getTransactions({ budgetIds: [budget.id], limit: 30, raw: true });
+    expect(linkedTransactions.map((tx) => tx.id).toSorted()).toEqual([personalExpense.id, workExpense.id].toSorted());
+
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: false, raw: true });
+
+    const restored = (await helpers.getStats({ id: budget.id, raw: true }))!;
+    const restoredSpending = await helpers.getSpendingStats({ id: budget.id, raw: true });
+    expect(restored.summary.actualExpense).toBe(300);
+    expect(restored.summary.transactionsCount).toBe(2);
+    expect(restoredSpending.spendingsByCategory[0]!.amount).toBe(300);
+  });
+
   it('successfully returns stats', async () => {
     const [baseTx] = await helpers.createTransaction({ raw: true });
     const [base2Tx] = await helpers.createTransaction({ raw: true });
@@ -76,6 +122,46 @@ describe('Get budget stats', () => {
   });
 
   describe('Refund handling', () => {
+    it('excludes a work expense and its merchant refund from a manual budget', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const [workExpense] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 100,
+          transactionType: TRANSACTION_TYPES.expense,
+        }),
+        raw: true,
+      });
+      const [merchantRefund] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 40,
+          transactionType: TRANSACTION_TYPES.income,
+        }),
+        raw: true,
+      });
+      await helpers.createSingleRefund({ originalTxId: workExpense.id, refundTxId: merchantRefund.id }, true);
+
+      const budget = await helpers.createCustomBudget({ name: 'Work refund exclusion', raw: true });
+      await helpers.addTransactionToCustomBudget({
+        id: budget.id,
+        payload: { transactionIds: [workExpense.id, merchantRefund.id] },
+        raw: true,
+      });
+      await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+      expect((await helpers.getStats({ id: budget.id, raw: true }))!.summary).toEqual(
+        getResponseInitialState().summary,
+      );
+
+      await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: false, raw: true });
+
+      const restored = (await helpers.getStats({ id: budget.id, raw: true }))!;
+      expect(restored.summary.actualExpense).toBe(60);
+      expect(restored.summary.actualIncome).toBe(0);
+      expect(restored.summary.balance).toBe(-60);
+    });
+
     it('applies refund netting per attached side', async () => {
       const account = await helpers.createAccount({ raw: true });
 

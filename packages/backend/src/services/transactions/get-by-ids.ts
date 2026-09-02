@@ -2,6 +2,7 @@ import type { RecordId } from '@bt/shared/types';
 import { ValidationError } from '@js/errors';
 import * as Transactions from '@models/transactions.model';
 import { serializeTransactions } from '@root/serializers/transactions.serializer';
+import { attachWorkExpenseMetadata } from '@services/work-expenses/attach-transaction-metadata';
 
 import { withTransaction } from '../common/with-transaction';
 
@@ -29,5 +30,5 @@ export const getTransactionsByIds = withTransaction(async ({ userId, ids }: GetT
     userId,
   });
 
-  return serializeTransactions(transactions);
+  return serializeTransactions(await attachWorkExpenseMetadata({ transactions }));
 });

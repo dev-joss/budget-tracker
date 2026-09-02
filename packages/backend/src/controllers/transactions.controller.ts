@@ -4,6 +4,7 @@ import { createController } from '@controllers/helpers/controller-factory';
 import { serializeTransaction, serializeTransactions } from '@root/serializers';
 import { isPermissionAtLeast } from '@services/sharing/auth/permission-rank';
 import * as transactionsService from '@services/transactions';
+import { attachWorkExpenseMetadata } from '@services/work-expenses/attach-transaction-metadata';
 import { z } from 'zod';
 
 export const getTransactionById = createController(
@@ -45,7 +46,8 @@ export const getTransactionById = createController(
     // Mutate the tx instance so the serializer's property-existence check picks it up.
     Object.assign(tx, { canEdit });
 
-    return { data: serializeTransaction(tx) };
+    const [enriched] = await attachWorkExpenseMetadata({ transactions: [tx] });
+    return { data: serializeTransaction(enriched!) };
   },
 );
 

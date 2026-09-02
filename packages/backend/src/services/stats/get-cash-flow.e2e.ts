@@ -190,6 +190,48 @@ describe('GET /stats/cash-flow', () => {
 });
 
 describe('GET /stats/cash-flow — refunds and splits', () => {
+  it('excludes a work expense and its linked merchant refund', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    const [workExpense] = await helpers.createTransaction({
+      payload: {
+        ...helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 100,
+          transactionType: TRANSACTION_TYPES.expense,
+        }),
+        time: '2025-01-10T12:00:00.000Z',
+      },
+      raw: true,
+    });
+    const [merchantRefund] = await helpers.createTransaction({
+      payload: {
+        ...helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 40,
+          transactionType: TRANSACTION_TYPES.income,
+        }),
+        time: '2025-01-20T12:00:00.000Z',
+      },
+      raw: true,
+    });
+
+    await helpers.createSingleRefund({ originalTxId: workExpense.id, refundTxId: merchantRefund.id }, true);
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+    const excluded = await helpers.getCashFlow({ ...RANGE, raw: true });
+
+    expect(excluded.totals.expenses).toBe(0);
+    expect(excluded.totals.income).toBe(0);
+    expect(excluded.totals.netFlow).toBe(0);
+
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: false, raw: true });
+
+    const personal = await helpers.getCashFlow({ ...RANGE, raw: true });
+    expect(personal.totals.expenses).toBe(60);
+    expect(personal.totals.income).toBe(0);
+    expect(personal.totals.netFlow).toBe(-60);
+  });
+
   it('nets a refund out of expenses instead of counting it as income', async () => {
     const account = await helpers.createAccount({ raw: true });
     const category = await helpers.addCustomCategory({ name: uniqueName('Refundable'), color: '#0000aa', raw: true });

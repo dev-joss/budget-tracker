@@ -6,7 +6,13 @@
  * Deserializers convert API decimal inputs to Money.
  */
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
-import type { CategorizationMeta, RecordId } from '@bt/shared/types';
+import type {
+  CategorizationMeta,
+  ExpensifyMatchState,
+  ExpensifyReviewReason,
+  RecordId,
+  WorkExpenseSource,
+} from '@bt/shared/types';
 import { Money, centsToApiDecimal, centsToApiDecimalOrNull } from '@common/types/money';
 import type Tags from '@models/tags.model';
 import type TransactionGroups from '@models/transaction-groups.model';
@@ -55,6 +61,10 @@ export interface TransactionApiResponse {
   originalId: string | null;
   refundLinked: boolean;
   isPlanned: boolean;
+  isWorkExpense: boolean;
+  workExpenseSource: WorkExpenseSource | null;
+  workExpenseMatchState: ExpensifyMatchState | null;
+  workExpenseReviewReasons: ExpensifyReviewReason[];
   /** Set when a bank transaction merged into this row while it was planned. */
   plannedMerge: { mergedAt: string } | null;
   payeeId: string | null;
@@ -224,6 +234,12 @@ export function serializeTransaction(
     originalId: tx.originalId,
     refundLinked: tx.refundLinked,
     isPlanned: tx.isPlanned ?? false,
+    isWorkExpense: tx.isWorkExpense ?? false,
+    workExpenseSource: tx.workExpenseSource ?? null,
+    workExpenseMatchState:
+      (tx as Transactions & { workExpenseMatchState?: ExpensifyMatchState | null }).workExpenseMatchState ?? null,
+    workExpenseReviewReasons:
+      (tx as Transactions & { workExpenseReviewReasons?: ExpensifyReviewReason[] }).workExpenseReviewReasons ?? [],
     plannedMerge: extractPlannedMerge({ externalData: tx.externalData }),
     payeeId: tx.payeeId ?? null,
     payeeLocked: tx.payeeLocked ?? false,

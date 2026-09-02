@@ -4,6 +4,9 @@ import * as Accounts from '@models/accounts.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
 import Budget from '@models/budget.model';
 import Categories from '@models/categories.model';
+import ExpensifyConnections from '@models/expensify-connections.model';
+import ExpensifyExpenses from '@models/expensify-expenses.model';
+import ExpensifyMatchCandidates from '@models/expensify-match-candidates.model';
 import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
 import Portfolios from '@models/investments/portfolios.model';
 import Notifications from '@models/notifications.model';
@@ -100,6 +103,21 @@ export const getOwnedSharedResourceSummary = async ({ userId }: { userId: number
  * domain data + per-user settings/currency state go.
  */
 export const destroyUserOwnedData = async ({ user }: { user: Users.default }) => {
+  const expensifyConnection = await ExpensifyConnections.unscoped().findOne({
+    where: { userId: user.id },
+    attributes: ['id', 'credentialRevision', 'activeSynchronizationRunId'],
+    lock: true,
+  });
+  const expensifySynchronization = expensifyConnection
+    ? {
+        scope: {
+          connectionId: expensifyConnection.id,
+          credentialRevision: expensifyConnection.credentialRevision,
+        },
+        synchronizationRunId: expensifyConnection.activeSynchronizationRunId,
+      }
+    : null;
+
   // Break Users → Categories FK before the Categories rows go. The caller repoints
   // `defaultCategoryId` afterwards (reseed for wipe, restored value for backup).
   // totalBalance gets recomputed from accounts on demand; zero it as the baseline.
@@ -137,6 +155,9 @@ export const destroyUserOwnedData = async ({ user }: { user: Users.default }) =>
   // Ordering note: things that reference Accounts/Categories/Tags go BEFORE those
   // tables, so their cascades can run cleanly against still-present rows.
   await Notifications.destroy({ where: { userId: user.id } });
+  await ExpensifyMatchCandidates.destroy({ where: { userId: user.id } });
+  await ExpensifyExpenses.destroy({ where: { userId: user.id } });
+  await ExpensifyConnections.destroy({ where: { userId: user.id } });
   await SubscriptionCandidates.destroy({ where: { userId: user.id } });
   await TransferSuggestionDismissals.destroy({ where: { userId: user.id } });
   await TransactionAutomations.destroy({ where: { userId: user.id } });
@@ -176,16 +197,23 @@ export const destroyUserOwnedData = async ({ user }: { user: Users.default }) =>
   await UsersCurrencies.destroy({ where: { userId: user.id } });
   await UserExchangeRates.destroy({ where: { userId: user.id } });
   await UserSettings.destroy({ where: { userId: user.id } });
+
+  return { expensifySynchronization };
 };
 
 export const wipeUserData = async ({ userId }: { userId: number }) => {
+  type ExpensifySynchronization = NonNullable<
+    Awaited<ReturnType<typeof destroyUserOwnedData>>['expensifySynchronization']
+  >;
+  const expensifySynchronizations: ExpensifySynchronization[] = [];
   await runUserDestroyLifecycle({
     userId,
     cacheLogPrefix: 'user-wipe',
     failureLogCode: 'USER_WIPE_FAILED',
     failureLogMessage: 'User data wipe failed',
     destroyInTx: async ({ user }) => {
-      await destroyUserOwnedData({ user });
+      const { expensifySynchronization } = await destroyUserOwnedData({ user });
+      if (expensifySynchronization) expensifySynchronizations.push(expensifySynchronization);
 
       // Reseed default categories + tags + default-category pointer. A wiped user lands
       // on the same starter state a brand-new signup would — empty-state with common
@@ -195,4 +223,16 @@ export const wipeUserData = async ({ userId }: { userId: number }) => {
       await seedUserDefaults({ userId: user.id });
     },
   });
+
+  // Clear only the synchronization owned by the connection deleted in the committed
+  // transaction. A replacement connection can start safely before this cleanup runs.
+  const [expensifySynchronization] = expensifySynchronizations;
+  if (expensifySynchronization) {
+    const { cancelSynchronization } = await import('@services/work-expenses/sync-queue');
+    await cancelSynchronization({
+      userId,
+      scope: expensifySynchronization.scope,
+      synchronizationRunId: expensifySynchronization.synchronizationRunId,
+    });
+  }
 };

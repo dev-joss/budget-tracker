@@ -27,6 +27,61 @@ describe('Budget Transactions', () => {
   };
 
   describe('Attach', () => {
+    it('rejects a work expense from manual attachment', async () => {
+      const [workExpense] = await helpers.createTransaction({ raw: true });
+      const budget = await helpers.createCustomBudget({ name: 'Personal spend', raw: true });
+
+      await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+      const response = await helpers.addTransactionToCustomBudget({
+        id: budget.id,
+        payload: { transactionIds: [workExpense.id] },
+        raw: false,
+      });
+
+      expect(response.statusCode).toBe(ERROR_CODES.ValidationError);
+      expect(await helpers.getTransactions({ budgetIds: [budget.id], limit: 30, raw: true })).toEqual([]);
+    });
+
+    it('does not auto-include a work expense in a new manual budget', async () => {
+      const account = await helpers.createAccount({ raw: true });
+      const [personalExpense] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 100,
+          transactionType: TRANSACTION_TYPES.expense,
+          time: '2025-03-10T12:00:00Z',
+        }),
+        raw: true,
+      });
+      const [workExpense] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: 200,
+          transactionType: TRANSACTION_TYPES.expense,
+          time: '2025-03-11T12:00:00Z',
+        }),
+        raw: true,
+      });
+      await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+      const budget = await helpers.createCustomBudget({
+        name: 'Auto personal spend',
+        startDate: '2025-03-01T00:00:00Z',
+        endDate: '2025-03-31T23:59:59Z',
+        autoInclude: true,
+        raw: true,
+      });
+
+      const initiallyLinked = await helpers.getTransactions({ budgetIds: [budget.id], limit: 30, raw: true });
+      expect(initiallyLinked.map((tx) => tx.id)).toEqual([personalExpense.id]);
+
+      await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: false, raw: true });
+
+      const linkedAfterUnmark = await helpers.getTransactions({ budgetIds: [budget.id], limit: 30, raw: true });
+      expect(linkedAfterUnmark.map((tx) => tx.id)).toEqual([personalExpense.id]);
+    });
+
     it('fails when adding duplicate transaction to the same budget if unique constraint exists', async () => {
       const account = await helpers.createAccount({ raw: true });
 

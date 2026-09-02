@@ -35,6 +35,7 @@ import {
 } from './enums';
 import { LoanEvent } from './loans';
 import { RecordId } from './record-id';
+import type { ExpensifyMatchState, ExpensifyReviewReason, WorkExpenseSource } from './work-expenses';
 
 export interface UserModel {
   id: number;
@@ -297,6 +298,14 @@ export interface TransactionModel {
   originalCurrencyCode: string | null;
   refundLinked: boolean;
   isPlanned: boolean;
+  /** Effective reporting classification. Work expenses stay in the ledger and balances. */
+  isWorkExpense: boolean;
+  /** A manual value is authoritative, including an explicit manual unmark. */
+  workExpenseSource: WorkExpenseSource | null;
+  /** Present on user-facing transaction reads when a confirmed Expensify link exists. */
+  workExpenseMatchState?: ExpensifyMatchState | null;
+  /** Present on user-facing transaction reads when work-expense metadata was requested. */
+  workExpenseReviewReasons?: ExpensifyReviewReason[];
   /** Serializer-derived: set when a bank transaction merged into this row while it was planned. */
   plannedMerge?: { mergedAt: string } | null;
   /** Metadata about how this transaction was categorized */

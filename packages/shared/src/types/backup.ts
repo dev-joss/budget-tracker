@@ -13,7 +13,7 @@
  * On-disk backup shape version. Restore hard-fails a manifest whose
  * `formatVersion` is greater than this (app too old for the backup).
  */
-export const BACKUP_FORMAT_VERSION = 1;
+export const BACKUP_FORMAT_VERSION = 2;
 
 /**
  * Base names of the per-table files written under `data/` in the zip (one
@@ -26,6 +26,7 @@ export const BACKUP_FILE_NAMES = [
   // tier 1
   'user',
   // tier 2
+  'expensify-connections',
   'user-settings',
   'users-currencies',
   'categories',
@@ -63,6 +64,7 @@ export const BACKUP_FILE_NAMES = [
   'venture-events',
   'subscription-candidates',
   // tier 5
+  'expensify-expenses',
   'transaction-splits',
   'transaction-tags',
   'transaction-group-items',
@@ -77,6 +79,7 @@ export const BACKUP_FILE_NAMES = [
   'venture-event-links',
   // tier 6
   'subscription-period-notifications',
+  'expensify-match-candidates',
   // exported but skipped on restore (counterpart users don't exist cross-instance)
   'resource-shares',
   'share-invitations',

@@ -30,6 +30,33 @@ const withdraw = async ({ portfolioId, amount, date }: { portfolioId: string; am
   });
 
 describe('GET /stats/investment-contributions', () => {
+  it('excludes work expenses from the user-wide savings input', async () => {
+    const account = await helpers.createAccount({ raw: true });
+    await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 500,
+        transactionType: TRANSACTION_TYPES.income,
+        time: `${JAN.start}T10:00:00.000Z`,
+      }),
+      raw: true,
+    });
+    const [workExpense] = await helpers.createTransaction({
+      payload: helpers.buildTransactionPayload({
+        accountId: account.id,
+        amount: 200,
+        transactionType: TRANSACTION_TYPES.expense,
+        time: `${JAN.start}T11:00:00.000Z`,
+      }),
+      raw: true,
+    });
+    await helpers.setTransactionWorkExpense({ id: workExpense.id, isWorkExpense: true, raw: true });
+
+    const { buckets } = await helpers.getInvestmentContributions({ ...RANGE, raw: true });
+
+    expect(buckets[0]!.savingsNet).toBe(500);
+  });
+
   it('reports a single deposit as the bucket total and the portfolio legend', async () => {
     const portfolio = await createNamedPortfolio({ name: 'Brokerage' });
     await deposit({ portfolioId: portfolio.id, amount: '500', date: '2026-01-15' });
