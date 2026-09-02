@@ -81,5 +81,7 @@ runs:
         load: ${{ inputs.push != 'true' }}
         platforms: ${{ inputs.platforms }}
         tags: ${{ steps.tags.outputs.refs }}
+        cache-from: type=gha,scope=backend
+        cache-to: type=gha,mode=max,scope=backend
         build-args: |
           SENTRY_RELEASE=${{ inputs.sentry-release }}

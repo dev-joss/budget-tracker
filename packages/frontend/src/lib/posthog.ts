@@ -1,6 +1,7 @@
 import { config } from '@/common/config';
 import type { DemoBlockedFeature, DemoEndReason } from '@/common/const/demo';
 import type { FeedbackType } from '@/components/dialogs/feedback-submission';
+import type { AIKeyProvider } from '@bt/shared/types';
 import posthog from 'posthog-js';
 import type { Router } from 'vue-router';
 
@@ -50,13 +51,13 @@ type AnalyticsEvent =
   // Import funnel (import_completed tracked on backend)
   | {
       event: 'import_opened';
-      properties: { import_type: 'csv' | 'statement_parser' | 'ynab' | 'budget-bakers-wallet' | 'ms-money' };
+      properties: { import_type: 'csv' | 'statement_parser' | 'ynab' | 'budget-bakers-wallet' | 'ms-money' | 'ofx' };
     }
   // AI features (ai_categorization_completed tracked on backend)
   | { event: 'ai_feature_used'; properties: { feature: 'statement_parser' | 'categorization' } }
   | { event: 'ai_settings_visited' }
   | { event: 'automations_mcp_tip_opened' }
-  | { event: 'ai_key_set'; properties: { provider: 'openai' | 'anthropic' | 'google' | 'groq' } }
+  | { event: 'ai_key_set'; properties: { provider: AIKeyProvider } }
   // Transactions filter bar (which filters people actually use — informs which
   // ones to pin or rank higher in the "+ add filter" menu)
   | { event: 'transactions_filter_added'; properties: { filter: string } }

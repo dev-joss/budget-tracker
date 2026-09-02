@@ -96,6 +96,8 @@ runs:
         load: ${{ inputs.push != 'true' }}
         platforms: ${{ inputs.platforms }}
         tags: ${{ steps.tags.outputs.refs }}
+        cache-from: type=gha,scope=frontend
+        cache-to: type=gha,mode=max,scope=frontend
         build-args: |
           VITE_SENTRY_RELEASE=${{ inputs.sentry-release }}
           VITE_APP_COMMIT_HASH=${{ inputs.app-commit-hash }}

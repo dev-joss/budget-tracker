@@ -11,6 +11,10 @@ on:
   # enable manual triggers
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   # Total number of backend e2e shards. Must stay in sync with the
   # backend-e2e job's matrix.shardIndex list (a matrix cannot read env vars).
