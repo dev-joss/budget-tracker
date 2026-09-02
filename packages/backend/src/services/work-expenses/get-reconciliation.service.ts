@@ -114,7 +114,7 @@ export async function getReconciliation({
   const { rows, count } = await ExpensifyExpenses.findAndCountAll({
     where,
     order: [
-      ['updatedAt', 'DESC'],
+      ['expenseDate', 'DESC'],
       ['id', 'ASC'],
     ],
     limit,

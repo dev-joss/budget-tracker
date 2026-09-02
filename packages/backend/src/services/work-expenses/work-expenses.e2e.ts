@@ -262,6 +262,45 @@ describe('synchronization and reconciliation', () => {
     });
     expect(invalid.statusCode).toBe(ERROR_CODES.ValidationError);
   });
+
+  it('GET /reconciliation orders paginated expenses by date and id', async () => {
+    await connectIntegration();
+    const newerExpense = upstreamExpense({
+      overrides: { externalExpenseId: 'expense-newer', expenseDate: '2026-08-20' },
+    });
+    const newerPeerExpense = upstreamExpense({
+      overrides: { externalExpenseId: 'expense-newer-peer', expenseDate: '2026-08-20' },
+    });
+    const olderExpense = upstreamExpense({
+      overrides: { externalExpenseId: 'expense-older', expenseDate: '2026-08-10' },
+    });
+    exportSpy.mockResolvedValueOnce([newerExpense, newerPeerExpense, olderExpense]);
+    await helpers.triggerWorkExpenseSync({ raw: true });
+    await helpers.waitForWorkExpenseSync({ predicate: (status) => status.status === 'completed' });
+
+    exportSpy.mockResolvedValueOnce([
+      newerExpense,
+      newerPeerExpense,
+      { ...olderExpense, modifiedMerchant: 'Updated older merchant' },
+    ]);
+    await helpers.triggerWorkExpenseSync({ raw: true });
+    await helpers.waitForWorkExpenseSync({ predicate: (status) => status.status === 'completed' });
+
+    const pages = await Promise.all(
+      [0, 1, 2].map((offset) =>
+        helpers.getWorkExpenseReconciliation({
+          state: EXPENSIFY_MATCH_STATES.unmatched,
+          limit: 1,
+          offset,
+          raw: true,
+        }),
+      ),
+    );
+    const expenses = pages.flatMap(({ items }) => items.map(({ expense }) => expense));
+    expect(expenses.map(({ expenseDate }) => expenseDate)).toEqual(['2026-08-20', '2026-08-20', '2026-08-10']);
+    expect(expenses.slice(0, 2).map(({ id }) => id)).toEqual(expenses.slice(0, 2).map(({ id }) => id).toSorted());
+    expect(new Set(expenses.map(({ id }) => id)).size).toBe(3);
+  });
 });
 
 describe('confirmation, unlink, deletion, and review lifecycle', () => {
