@@ -85,7 +85,11 @@ export function getWorkExpenseReconciliation<R extends boolean | undefined = und
   return makeRequest<ExpensifyReconciliationResponse, R>({
     method: 'get',
     url: '/work-expenses/reconciliation',
-    payload: { state, limit, offset },
+    payload: {
+      ...(state === undefined ? {} : { state }),
+      ...(limit === undefined ? {} : { limit }),
+      ...(offset === undefined ? {} : { offset }),
+    },
     raw,
   });
 }
