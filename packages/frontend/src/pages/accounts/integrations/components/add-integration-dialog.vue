@@ -1,5 +1,10 @@
 <template>
-  <ResponsiveDialog :open="open" dialog-content-class="sm:max-w-2xl" @update:open="emit('update:open', $event)">
+  <ResponsiveDialog
+    :open="open"
+    :modal="false"
+    dialog-content-class="sm:max-w-2xl"
+    @update:open="emit('update:open', $event)"
+  >
     <template #title>{{ dialogTitle }}</template>
 
     <!-- Step 1: Select Provider -->

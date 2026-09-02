@@ -1,3 +1,8 @@
+import { t } from '@i18n/index';
+import { ValidationError } from '@js/errors';
+import PlaidConfigurations from '@models/plaid-configurations.model';
+import { decryptCredentials, encryptCredentials } from '@services/bank-data-providers/utils/credential-encryption';
+import { withTransaction } from '@services/common/with-transaction';
 import { CountryCode, PlaidEnvironments } from 'plaid';
 import { z } from 'zod';
 
@@ -25,6 +30,27 @@ export interface PlaidConfig {
   redirectUri?: string;
   webhookUrl?: string;
   transactionsDaysRequested: number;
+}
+
+export interface PlaidConfigurationInput {
+  clientId: string;
+  secret?: string;
+  environment: 'sandbox' | 'production';
+  countryCodes: string[];
+  transactionsDaysRequested: number;
+}
+
+export interface PlaidConfigurationView {
+  configured: true;
+  secretConfigured: true;
+  clientId: string;
+  environment: 'sandbox' | 'production';
+  countryCodes: string[];
+  transactionsDaysRequested: number;
+}
+
+interface StoredPlaidConfiguration extends PlaidConfigurationInput {
+  secret: string;
 }
 
 const supportedCountryCodes = new Set(Object.values(CountryCode));
@@ -55,3 +81,77 @@ export const readPlaidConfig = ({ env = process.env }: { env?: NodeJS.ProcessEnv
     transactionsDaysRequested: parsed.PLAID_TRANSACTIONS_DAYS_REQUESTED,
   };
 };
+
+const readStoredConfiguration = async (): Promise<StoredPlaidConfiguration | null> => {
+  const row = await PlaidConfigurations.findByPk(1);
+  if (!row) return null;
+  return decryptCredentials(row.encryptedConfiguration) as unknown as StoredPlaidConfiguration;
+};
+
+const storedConfigurationToEnvironment = ({
+  configuration,
+  env,
+}: {
+  configuration: StoredPlaidConfiguration;
+  env: NodeJS.ProcessEnv;
+}): NodeJS.ProcessEnv => ({
+  ...env,
+  PLAID_CLIENT_ID: configuration.clientId,
+  PLAID_SECRET: configuration.secret,
+  PLAID_ENV: configuration.environment,
+  PLAID_COUNTRY_CODES: configuration.countryCodes.join(','),
+  PLAID_TRANSACTIONS_DAYS_REQUESTED: String(configuration.transactionsDaysRequested),
+});
+
+export const resolvePlaidConfig = async ({
+  env = process.env,
+}: {
+  env?: NodeJS.ProcessEnv;
+} = {}): Promise<PlaidConfig | null> => {
+  const stored = await readStoredConfiguration();
+  return readPlaidConfig({ env: stored ? storedConfigurationToEnvironment({ configuration: stored, env }) : env });
+};
+
+export const getPlaidConfiguration = async (): Promise<PlaidConfigurationView | null> => {
+  const config = await resolvePlaidConfig();
+  if (!config) return null;
+  return {
+    configured: true,
+    secretConfigured: true,
+    clientId: config.clientId,
+    environment: config.environment,
+    countryCodes: config.countryCodes,
+    transactionsDaysRequested: config.transactionsDaysRequested,
+  };
+};
+
+const savePlaidConfigurationImpl = async ({
+  input,
+}: {
+  input: PlaidConfigurationInput;
+}): Promise<PlaidConfigurationView> => {
+  const current = await resolvePlaidConfig();
+  const secret = input.secret?.trim() || current?.secret;
+  if (!secret) throw new ValidationError({ message: t({ key: 'bankDataProviders.plaid.secretRequired' }) });
+
+  const stored: StoredPlaidConfiguration = { ...input, clientId: input.clientId.trim(), secret };
+  const parsed = readPlaidConfig({
+    env: storedConfigurationToEnvironment({ configuration: stored, env: process.env }),
+  });
+  if (!parsed) throw new ValidationError({ message: t({ key: 'bankDataProviders.plaid.notConfigured' }) });
+
+  await PlaidConfigurations.upsert({
+    id: 1,
+    encryptedConfiguration: encryptCredentials({ ...stored }),
+  });
+  return {
+    configured: true,
+    secretConfigured: true,
+    clientId: parsed.clientId,
+    environment: parsed.environment,
+    countryCodes: parsed.countryCodes,
+    transactionsDaysRequested: parsed.transactionsDaysRequested,
+  };
+};
+
+export const savePlaidConfiguration = withTransaction(savePlaidConfigurationImpl);

@@ -5,7 +5,7 @@
     <template v-if="!connectionId">
       <p class="text-muted-foreground text-sm">{{ t('pages.integrations.plaid.description') }}</p>
       <div class="flex justify-end gap-2">
-        <UiButton variant="outline" @click="emit('cancel')">{{ t('common.cancel') }}</UiButton>
+        <UiButton variant="outline" @click="emit('cancel')">{{ t('common.actions.cancel') }}</UiButton>
         <UiButton :disabled="isLoading" @click="startLink">
           <Loader2Icon v-if="isLoading" class="size-4 animate-spin" />
           {{ t('pages.integrations.plaid.connectButton') }}
@@ -20,7 +20,7 @@
         :accounts="availableAccounts"
       />
       <div class="flex justify-end gap-2">
-        <UiButton variant="outline" @click="emit('cancel')">{{ t('common.cancel') }}</UiButton>
+        <UiButton variant="outline" @click="emit('cancel')">{{ t('common.actions.cancel') }}</UiButton>
         <UiButton :disabled="isLoading || selectedAccountIds.length === 0" @click="importAccounts">
           <Loader2Icon v-if="isLoading" class="size-4 animate-spin" />
           {{ t('pages.integrations.plaid.importButton', selectedAccountIds.length) }}

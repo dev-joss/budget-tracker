@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { PlaidApi } from 'plaid';
 
 import { createPlaidApiClient } from './api-client';
-import { readPlaidConfig } from './config';
+import { resolvePlaidConfig } from './config';
 
 const MAX_WEBHOOK_AGE_SECONDS = 5 * 60;
 const KEY_CACHE_MS = 60 * 60 * 1000;
@@ -26,7 +26,7 @@ export const verifyPlaidWebhook = async ({
 
   let cached = keyCache.get(header.kid);
   if (!cached || cached.expiresAt <= now.getTime()) {
-    const config = apiClient ? null : readPlaidConfig();
+    const config = apiClient ? null : await resolvePlaidConfig();
     if (!apiClient && !config) throw new Error('Plaid is not configured');
     const client = apiClient || createPlaidApiClient({ config: config! });
     const response = await client.webhookVerificationKeyGet({

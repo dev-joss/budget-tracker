@@ -282,7 +282,8 @@
       "accountNotFound": "Plaid account not found.",
       "itemAlreadyConnected": "This Plaid Item is already connected.",
       "bankLoginAlreadyConnected": "This Plaid bank login is already connected.",
-      "notConfigured": "Plaid is not configured."
+      "notConfigured": "Plaid is not configured.",
+      "secretRequired": "Plaid secret is required."
     },
     "walutomat": {
       "invalidCredentialsFormat": "Invalid Walutomat credentials format. API key and private key are required.",

@@ -34,6 +34,23 @@ export interface BankConnection {
   bankName: string | null;
 }
 
+export interface PlaidConfiguration {
+  configured: true;
+  secretConfigured: true;
+  clientId: string;
+  environment: 'sandbox' | 'production';
+  countryCodes: string[];
+  transactionsDaysRequested: number;
+}
+
+export interface PlaidConfigurationInput {
+  clientId: string;
+  secret?: string;
+  environment: 'sandbox' | 'production';
+  countryCodes: string[];
+  transactionsDaysRequested: number;
+}
+
 interface BankConnectionDetails {
   id: string;
   providerType: BANK_PROVIDER_TYPE;
@@ -163,6 +180,24 @@ export const createPlaidLinkToken = async (): Promise<{ linkToken: string; expir
 
 export const completePlaidUpdate = async ({ connectionId }: { connectionId: string }): Promise<void> => {
   await api.post('/bank-data-providers/plaid/update-complete', { connectionId });
+};
+
+export const getPlaidConfiguration = async (): Promise<PlaidConfiguration | null> => {
+  const response = await api.get<{ configuration: PlaidConfiguration | null }>(
+    '/bank-data-providers/plaid/configuration',
+  );
+  return response.configuration;
+};
+
+export const updatePlaidConfiguration = async ({
+  configuration,
+}: {
+  configuration: PlaidConfigurationInput;
+}): Promise<PlaidConfiguration> => {
+  const response = (await api.put('/bank-data-providers/plaid/configuration', configuration)) as {
+    configuration: PlaidConfiguration;
+  };
+  return response.configuration;
 };
 
 export const updateConnectionDetails = async (

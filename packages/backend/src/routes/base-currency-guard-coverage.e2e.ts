@@ -44,6 +44,10 @@ const GUARD_EXEMPT_ROUTES = new Set<string>([
   // drop the user's upload for nothing.
   'POST /api/v1/resource-leases/refresh',
 
+  // Plaid authentication and instance configuration contain no monetary data.
+  'POST /api/v1/bank-data-providers/plaid/link-token',
+  'PUT /api/v1/bank-data-providers/plaid/configuration',
+
   // User profile / settings / AI settings / data-export — authenticated but touch no
   // monetary data; blocking them for the duration of a migration is user-hostile.
   'DELETE /api/v1/user/settings/ai/api-keys',

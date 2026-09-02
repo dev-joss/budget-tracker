@@ -16,10 +16,13 @@ import listCountries from '@controllers/bank-data-providers/enablebanking/list-c
 import oauthCallback from '@controllers/bank-data-providers/enablebanking/oauth-callback';
 import completePlaidUpdate from '@controllers/bank-data-providers/plaid/complete-update';
 import createPlaidLinkToken from '@controllers/bank-data-providers/plaid/create-link-token';
+import getPlaidConfiguration from '@controllers/bank-data-providers/plaid/get-configuration';
+import updatePlaidConfiguration from '@controllers/bank-data-providers/plaid/update-configuration';
 import * as providersController from '@controllers/bank-data-providers/providers.controller';
 import checkSync from '@controllers/bank-data-providers/sync/check-sync';
 import getSyncStatus from '@controllers/bank-data-providers/sync/get-sync-status';
 import triggerSync from '@controllers/bank-data-providers/sync/trigger-sync';
+import { adminOnly } from '@middlewares/admin-only';
 import { authenticateSession } from '@middlewares/better-auth';
 import { blockDemoUsers } from '@middlewares/block-demo-users';
 import { checkBaseCurrencyLock } from '@middlewares/check-base-currency-lock';
@@ -156,6 +159,20 @@ router.get(
 );
 
 // Plaid specific endpoints
+router.get(
+  '/plaid/configuration',
+  authenticateSession,
+  adminOnly,
+  validateEndpoint(getPlaidConfiguration.schema),
+  getPlaidConfiguration.handler,
+);
+router.put(
+  '/plaid/configuration',
+  authenticateSession,
+  adminOnly,
+  validateEndpoint(updatePlaidConfiguration.schema),
+  updatePlaidConfiguration.handler,
+);
 router.post(
   '/plaid/link-token',
   authenticateSession,

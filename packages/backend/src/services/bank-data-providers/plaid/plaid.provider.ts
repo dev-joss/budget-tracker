@@ -19,7 +19,7 @@ import { AccountSubtype, AccountType, type AccountBase, type PlaidApi } from 'pl
 
 import { createPlaidApiClient } from './api-client';
 import { plaidClientUserId } from './client-user-id';
-import { readPlaidConfig, type PlaidConfig } from './config';
+import { resolvePlaidConfig, type PlaidConfig } from './config';
 import { mapPlaidAccount } from './transaction-mapper';
 import { enqueuePlaidSync } from './transaction-sync-queue';
 import type { PlaidConnectionMetadata, PlaidCredentials } from './types';
@@ -59,14 +59,14 @@ export class PlaidProvider extends BaseBankDataProvider {
     },
   };
 
-  private requireConfig(): PlaidConfig {
-    const config = readPlaidConfig();
+  private async requireConfig(): Promise<PlaidConfig> {
+    const config = await resolvePlaidConfig();
     if (!config) throw new Error(t({ key: 'bankDataProviders.plaid.notConfigured' }));
     return config;
   }
 
-  private client(): PlaidApi {
-    return createPlaidApiClient({ config: this.requireConfig() });
+  private async client(): Promise<PlaidApi> {
+    return createPlaidApiClient({ config: await this.requireConfig() });
   }
 
   async connect({ userId, credentials }: { userId: number; credentials: unknown }): Promise<string> {
@@ -74,7 +74,7 @@ export class PlaidProvider extends BaseBankDataProvider {
       throw new ValidationError({ message: t({ key: 'bankDataProviders.plaid.invalidConnectionCredentials' }) });
     }
 
-    const apiClient = this.client();
+    const apiClient = await this.client();
     let accessToken: string | undefined;
     try {
       const exchange = await apiClient.itemPublicTokenExchange({ public_token: credentials.publicToken });
@@ -89,7 +89,7 @@ export class PlaidProvider extends BaseBankDataProvider {
         ? (
             await apiClient.institutionsGetById({
               institution_id: item.institution_id,
-              country_codes: this.requireConfig().countryCodes,
+              country_codes: (await this.requireConfig()).countryCodes,
             })
           ).data.institution
         : null;
@@ -133,16 +133,14 @@ export class PlaidProvider extends BaseBankDataProvider {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
     const { accessToken } = connection.getDecryptedCredentials() as unknown as PlaidCredentials;
-    await this.client()
-      .itemRemove({ access_token: accessToken })
-      .catch(() => undefined);
+    await (await this.client()).itemRemove({ access_token: accessToken }).catch(() => undefined);
     await connection.destroy();
   }
 
   async validateCredentials({ credentials }: { credentials: unknown }): Promise<boolean> {
     if (!this.isStoredCredentials(credentials)) return false;
     try {
-      await this.client().itemGet({ access_token: credentials.accessToken });
+      await (await this.client()).itemGet({ access_token: credentials.accessToken });
       return true;
     } catch {
       return false;
@@ -157,8 +155,10 @@ export class PlaidProvider extends BaseBankDataProvider {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
     const { accessToken } = connection.getDecryptedCredentials() as unknown as PlaidCredentials;
-    const config = this.requireConfig();
-    const response = await this.client().linkTokenCreate({
+    const config = await this.requireConfig();
+    const response = await (
+      await this.client()
+    ).linkTokenCreate({
       client_name: 'MoneyMatter',
       country_codes: config.countryCodes,
       language: 'en',
@@ -175,8 +175,8 @@ export class PlaidProvider extends BaseBankDataProvider {
     this.validateProviderType(connection);
     const { accessToken } = connection.getDecryptedCredentials() as unknown as PlaidCredentials;
     const [itemResponse, accountsResponse, localAccounts] = await Promise.all([
-      this.client().itemGet({ access_token: accessToken }),
-      this.client().accountsGet({ access_token: accessToken }),
+      (await this.client()).itemGet({ access_token: accessToken }),
+      (await this.client()).accountsGet({ access_token: accessToken }),
       Accounts.findAll({ where: { userId, bankDataProviderConnectionId: connectionId } }),
     ]);
     const authorizedIds = new Set(accountsResponse.data.accounts.map((account) => account.account_id));
@@ -198,7 +198,7 @@ export class PlaidProvider extends BaseBankDataProvider {
 
   async fetchAccounts({ connectionId }: { connectionId: string }): Promise<ProviderAccount[]> {
     const credentials = await this.credentialsForConnection({ connectionId });
-    const response = await this.client().accountsGet({ access_token: credentials.accessToken });
+    const response = await (await this.client()).accountsGet({ access_token: credentials.accessToken });
     return response.data.accounts
       .filter((account) => isSupportedAccount({ account }))
       .map((account) => mapPlaidAccount({ account }));
@@ -244,7 +244,7 @@ export class PlaidProvider extends BaseBankDataProvider {
     accountExternalId: string;
   }): Promise<ProviderBalance> {
     const credentials = await this.credentialsForConnection({ connectionId });
-    const response = await this.client().accountsGet({ access_token: credentials.accessToken });
+    const response = await (await this.client()).accountsGet({ access_token: credentials.accessToken });
     const account = response.data.accounts.find((candidate) => candidate.account_id === accountExternalId);
     if (!account) throw new ValidationError({ message: t({ key: 'bankDataProviders.plaid.accountNotFound' }) });
     const mapped = mapPlaidAccount({ account });

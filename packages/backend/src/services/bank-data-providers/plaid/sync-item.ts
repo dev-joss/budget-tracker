@@ -11,7 +11,7 @@ import type { AccountBase, PlaidApi, RemovedTransaction, Transaction } from 'pla
 
 import { writeBankBalanceWithHistory } from '../utils/write-bank-balance-with-history';
 import { createPlaidApiClient, normalizePlaidError } from './api-client';
-import { readPlaidConfig } from './config';
+import { resolvePlaidConfig } from './config';
 import { mapPlaidAccount, mapPlaidTransaction } from './transaction-mapper';
 import type { PlaidConnectionMetadata, PlaidCredentials } from './types';
 
@@ -190,7 +190,7 @@ export const syncPlaidItem = async ({ connectionId, userId }: { connectionId: st
   if (!connection) throw new Error('Plaid connection was not found');
   const metadata = connection.metadata as PlaidConnectionMetadata;
   const { accessToken } = connection.getDecryptedCredentials() as unknown as PlaidCredentials;
-  const config = readPlaidConfig();
+  const config = await resolvePlaidConfig();
   if (!config) throw new Error('Plaid is not configured');
   const changes = await fetchPlaidSyncChanges({
     apiClient: createPlaidApiClient({ config }),

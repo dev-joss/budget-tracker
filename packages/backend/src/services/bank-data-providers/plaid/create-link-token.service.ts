@@ -3,7 +3,7 @@ import { Products, type PlaidApi } from 'plaid';
 
 import { createPlaidApiClient } from './api-client';
 import { plaidClientUserId } from './client-user-id';
-import { readPlaidConfig } from './config';
+import { resolvePlaidConfig } from './config';
 
 export const createPlaidLinkToken = async ({
   userId,
@@ -14,7 +14,7 @@ export const createPlaidLinkToken = async ({
   clientName?: string;
   apiClient?: PlaidApi;
 }): Promise<{ linkToken: string; expiration: string }> => {
-  const config = readPlaidConfig();
+  const config = await resolvePlaidConfig();
   if (!config) throw new Error(t({ key: 'bankDataProviders.plaid.notConfigured' }));
 
   const clientUserId = plaidClientUserId({ userId, secret: config.secret });
