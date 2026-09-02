@@ -37,6 +37,10 @@ import { retryWithBackoff } from './utils/retry-db-operation-with-backoff';
 
 const mswMockServer = setupMswServer();
 
+jest.mock('@services/bank-data-providers/plaid/webhook-verification', () => ({
+  verifyPlaidWebhook: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock the entire module globally. Mocked implementation will be per-test
 jest.mock('@polygon.io/client-js', () => ({
   restClient: jest.fn().mockReturnValue({

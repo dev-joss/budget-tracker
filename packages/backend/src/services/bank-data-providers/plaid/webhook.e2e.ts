@@ -2,8 +2,6 @@ import { app } from '@root/app';
 import { API_PREFIX } from '@root/config';
 import request from 'supertest';
 
-jest.mock('./webhook-verification', () => ({ verifyPlaidWebhook: jest.fn().mockResolvedValue(undefined) }));
-
 describe('POST /webhooks/plaid', () => {
   it('acknowledges a verified webhook without a matching Item', async () => {
     const response = await request(app)
