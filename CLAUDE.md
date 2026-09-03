@@ -28,17 +28,16 @@ Always test through the actual API endpoints to ensure full integration testing.
 
 - When a bug is reported, do **NOT** start by trying to fix it.
 - **First**, write a test that reproduces the bug (the test should fail) if it's suitable. For backend use e2e tests, for frontend if it's a util/composable write unit-test.
-- **Then**, use subagents to fix the bug and prove it with a passing test.
+- **Then**, fix the bug and prove it with a passing test.
 
 **CRITICAL: Running Tests**
 
 - **Run e2e tests automatically** after implementing changes that affect backend logic (new endpoints, bug fixes, refactors). Do not wait for user confirmation – just run them.
 - **NEVER** use `npx jest` directly. Always use the npm scripts.
-- **ALWAYS** use the `test-runner` subagent to run tests. The main agent must NEVER run tests directly.
 - Backend e2e tests: `npm run test:e2e` from `packages/backend/`
 - To run a specific test file: `npm run test:e2e -- --testPathPattern='<pattern>'`
 - Example: `npm run test:e2e -- --testPathPattern='subscriptions/subscriptions.e2e'`
-- **NEVER** run e2e tests in parallel (no concurrent test-runner agents for e2e). The Docker-based test environment does not support parallel runs. To test multiple files, combine them in a single `--testPathPattern` regex.
+- **NEVER** run e2e tests in parallel. The Docker-based test environment does not support parallel runs. To test multiple files, combine them in a single `--testPathPattern` regex.
 - Example (multiple files): `npm run test:e2e -- --testPathPattern='subscriptions/(subscriptions|matching-disambiguation).e2e'`
 
 Other instructions:
@@ -49,12 +48,7 @@ Other instructions:
    - Always: function({ arg1, arg2, arg3 })
 3. When planning the implementation don't limit yourself to 3-4 questions and 1 round.
    Ask as many questions with as many rounds as needed to collect all important information
-4. Use this map of suagents for different tasks:
-   - running any unit or e2e tests – use test-runner
-   - running any linter – use linter
-     – planning doing any websearch – use websearch
-     – if asked to do any code review – use code-change-reviewer
-5. **Money Convention: `Money` class everywhere, decimals in API, decimals in Frontend**
+4. **Money Convention: `Money` class everywhere, decimals in API, decimals in Frontend**
    - The database stores monetary amounts as **cents** (INTEGER columns) or **decimal strings** (DECIMAL columns for investments).
    - All Sequelize models declare money fields with the `@MoneyField` decorator (from `@common/types/money-column`): `@MoneyField({ storage: 'cents' }) declare amount: Money;`. It registers attribute-level getters/setters that return `Money` instances (from `@common/types/money`). **Do NOT use `raw: true`** on queries that include Money fields – it bypasses getters and returns raw integers/strings instead of `Money`.
    - Use `Money` methods for all monetary operations:
@@ -64,31 +58,30 @@ Other instructions:
    - All API responses MUST return monetary amounts as **decimals** (not cents). `Money` auto-serializes via `toJSON()` in `res.json()`. For explicit conversion, use serializers with `centsToApiDecimal()` from `@common/types/money`.
    - Money fields on transactions: `amount`, `refAmount`, `commissionRate`, `refCommissionRate`, `cashbackAmount`
    - **Frontend ALWAYS works with decimals.** The API returns decimals, forms accept decimals, and the frontend sends decimals back. **NEVER** manually convert between cents and decimals in frontend code.
-6. **i18n Files - use the `i18n-editor` subagent**
-   - i18n locale files are BLOCKED from reading by the main agent (hook saves tokens) – always delegate to the `i18n-editor` subagent.
-   - When a feature genuinely needs new translation keys (i.e. you just added a `$t('...')` reference that doesn't exist yet), proactively trigger the `i18n-editor` subagent to add them – do NOT ask for permission first. Briefly summarize what keys were added in your final response.
+5. **i18n Files**
+   - When a feature genuinely needs new translation keys (i.e. you just added a `$t('...')` reference that doesn't exist yet), add them. Briefly summarize what keys were added in your final response.
    - **`en` only.** Every other locale is translated in Crowdin and lands back via a Crowdin download – the non-`en` files in this repo are generated artifacts, and hand-editing them is pointless because the next download overwrites the file. Shipping a feature with `en` alone is correct and expected: other locales are filled in one bulk pass at release time.
    - Do NOT touch i18n files for unrelated work (don't "improve" existing translations, don't reorganize keys, don't bulk-translate English-only strings you encounter) – only add/update keys that the current task requires.
-   - If a string's wording is non-obvious (e.g., domain terminology, formal vs. casual tone), ask the user for the copy before delegating to the subagent.
-7. For Chrome extenstion use Brave browser, not Chrome
-8. **Frontend env vars (`VITE_*`) must also be added to CI** – they are inlined at build time. Add as input + envkey in `.github/actions/frontend-docker-build/action.yml`, then pass the secret in `.github/workflows/image-to-docker-hub.yml`.
-9. **CRITICAL: Migrations – Modify Existing Before Creating New**
+   - If a string's wording is non-obvious (e.g., domain terminology, formal vs. casual tone), ask the user for the copy before adding it.
+6. For Chrome extenstion use Brave browser, not Chrome
+7. **Frontend env vars (`VITE_*`) must also be added to CI** – they are inlined at build time. Add as input + envkey in `.github/actions/frontend-docker-build/action.yml`, then pass the secret in `.github/workflows/image-to-docker-hub.yml`.
+8. **CRITICAL: Migrations – Modify Existing Before Creating New**
     - **NEVER** create a new migration file if you can modify an existing one that was created during the current development process and has **not been merged to `dev`** yet.
     - Check the current branch's unmerged migrations first (`git log dev..HEAD` or git status for new files). If the change logically belongs in an existing unmerged migration, update that migration instead of adding a new one.
     - Only create a separate migration when the existing one is already on `dev` or when the changes are genuinely unrelated.
     - `dev`, not `main`, is the line: once a migration is on `dev` it has run against other developers' and previews' databases, so amending it leaves those databases silently diverged from the file.
-10. **VERY IMPORTANT: Stop Early When Stuck**
+9. **VERY IMPORTANT: Stop Early When Stuck**
     - If something doesn't work as expected during implementation, you are allowed **1–2 attempts** to fix it.
     - After that – **STOP**. Do NOT keep trying workarounds, custom scripts, eval hacks, or speculative fixes.
     - Instead, **describe the problem to the user** and ask what to do next.
     - This applies to debugging, unexpected behavior, failing builds, type errors you can't resolve, etc.
     - Burning tokens on a long chain of guesses almost never helps. Asking the user is always better.
-11. **Frontend Responsive Design: Container Width, Not Screen Width**
+10. **Frontend Responsive Design: Container Width, Not Screen Width**
     - Most pages render inside a layout with a persistent sidebar, so the **content container is much narrower than the viewport** (e.g., a 768px screen leaves ~500px for content). Viewport-based breakpoints (`md:`, `lg:`, `@media (min-width: 768px)`, `window.innerWidth`, etc.) therefore fire at the wrong moments and produce broken layouts.
     - **Default to container-based responsiveness**: use Tailwind's container queries (`@container` + `@sm:`, `@md:`, `@lg:` variants), CSS `@container` queries, or `ResizeObserver` on the component's wrapper. Mark the nearest layout wrapper with `@container` so children can react to its actual width.
     - Only use screen/viewport breakpoints when the change genuinely depends on the **viewport itself** – sidebar collapse, mobile nav switch, top-level page shell. Inside a page, prefer container queries.
     - When in doubt, ask: "would this breakpoint behave correctly if the sidebar collapsed/expanded?" If no – it should be a container query.
-12. **Comments describe current code, not history**
+11. **Comments describe current code, not history**
     - No "X was easy to trigger", "instead of quick-creating", "previously did Y", "replaced X with Y", "no longer". Comment must read cold – explain _why the current code is what it is_, standalone.
     - Change history goes in commits/PRs, not code.
     - Rare exception: if the abolished alternative is a footgun a future contributor will reach for, name it briefly as the **"abolished alternative"** – not "the old version".
