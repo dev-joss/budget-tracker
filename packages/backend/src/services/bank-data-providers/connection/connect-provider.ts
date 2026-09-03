@@ -20,7 +20,7 @@ export const connectProvider = withTransaction(
     const provider = bankProviderRegistry.get(providerType);
 
     // Create connection (stores encrypted credentials)
-    const connectionId = await provider.connect(userId, credentials);
+    const connectionId = await provider.connect({ userId, credentials });
 
     // Update provider name if provided
     if (providerName) {

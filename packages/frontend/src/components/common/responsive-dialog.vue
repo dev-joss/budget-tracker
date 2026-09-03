@@ -11,25 +11,30 @@ const [UseFooterTemplate, FooterSlotContent] = createReusableTemplate();
 const [UseScrollArea, ScrollAreaContent] = createReusableTemplate();
 const isMobile = useWindowBreakpoints(CUSTOM_BREAKPOINTS.uiMobile);
 
-const props = defineProps<{
-  open?: boolean;
-  dialogContentClass?: HTMLAttributes['class'];
-  drawerContentClass?: HTMLAttributes['class'];
-  customClose?: boolean;
-  /** When true, disables the internal scroll wrapper (display: contents).
-   * Use when the dialog content manages its own scrolling layout. */
-  noInternalScroll?: boolean;
-  /** When true, the footer slot is not rendered in drawer (mobile) mode.
-   * Use when the footer only contains a close action — swipe-to-close is enough on mobile. */
-  hideDrawerFooter?: boolean;
-  /** When true, the drawer (mobile) skips the grey grab-handle indicator.
-   * Use when the content paints its own flush element at the top edge. */
-  drawerCustomIndicator?: boolean;
-  /** When true, the title/description slots are rendered as visually-hidden (`sr-only`)
-   * accessible labels with no surrounding header spacing, instead of a styled visible header.
-   * Use when the content owns its own visible heading but Radix still needs a DialogTitle. */
-  srOnlyHeader?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open?: boolean;
+    /** When false, interaction outside the dialog remains available. */
+    modal?: boolean;
+    dialogContentClass?: HTMLAttributes['class'];
+    drawerContentClass?: HTMLAttributes['class'];
+    customClose?: boolean;
+    /** When true, disables the internal scroll wrapper (display: contents).
+     * Use when the dialog content manages its own scrolling layout. */
+    noInternalScroll?: boolean;
+    /** When true, the footer slot is not rendered in drawer (mobile) mode.
+     * Use when the footer only contains a close action — swipe-to-close is enough on mobile. */
+    hideDrawerFooter?: boolean;
+    /** When true, the drawer (mobile) skips the grey grab-handle indicator.
+     * Use when the content paints its own flush element at the top edge. */
+    drawerCustomIndicator?: boolean;
+    /** When true, the title/description slots are rendered as visually-hidden (`sr-only`)
+     * accessible labels with no surrounding header spacing, instead of a styled visible header.
+     * Use when the content owns its own visible heading but Radix still needs a DialogTitle. */
+    srOnlyHeader?: boolean;
+  }>(),
+  { modal: true },
+);
 
 const emit = defineEmits(['update:open']);
 
@@ -37,6 +42,10 @@ const isOpen = useVModel(props, 'open', emit, { passive: true });
 
 const close = () => {
   isOpen.value = false;
+};
+
+const handleInteractOutside = (event: Event) => {
+  if (!props.modal) event.preventDefault();
 };
 </script>
 
@@ -57,7 +66,7 @@ const close = () => {
   </UseScrollArea>
 
   <template v-if="isMobile">
-    <Drawer.Drawer v-model:open="isOpen">
+    <Drawer.Drawer v-model:open="isOpen" :modal="props.modal">
       <Drawer.DrawerTrigger as-child>
         <slot name="trigger" />
       </Drawer.DrawerTrigger>
@@ -100,7 +109,7 @@ const close = () => {
     </Drawer.Drawer>
   </template>
   <template v-else>
-    <Dialog.Dialog v-model:open="isOpen">
+    <Dialog.Dialog v-model:open="isOpen" :modal="props.modal">
       <Dialog.DialogTrigger as-child>
         <slot name="trigger" />
       </Dialog.DialogTrigger>
@@ -111,6 +120,7 @@ const close = () => {
           dialogContentClass,
         ]"
         :custom-close="customClose"
+        @interact-outside="handleInteractOutside"
       >
         <template v-if="props.srOnlyHeader">
           <Dialog.DialogTitle class="sr-only">

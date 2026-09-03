@@ -29,6 +29,7 @@ const PROVIDER_TO_ANALYTICS_TYPE: Record<BANK_PROVIDER_TYPE, BankProvider> = {
   [BANK_PROVIDER_TYPE.LUNCHFLOW]: 'lunchflow',
   [BANK_PROVIDER_TYPE.WALUTOMAT]: 'walutomat',
   [BANK_PROVIDER_TYPE.SIMPLEFIN]: 'simplefin',
+  [BANK_PROVIDER_TYPE.PLAID]: 'plaid',
 };
 
 const PROVIDER_TO_ACCOUNT_TYPE: Record<BANK_PROVIDER_TYPE, ACCOUNT_TYPES> = {
@@ -37,6 +38,7 @@ const PROVIDER_TO_ACCOUNT_TYPE: Record<BANK_PROVIDER_TYPE, ACCOUNT_TYPES> = {
   [BANK_PROVIDER_TYPE.LUNCHFLOW]: ACCOUNT_TYPES.lunchflow,
   [BANK_PROVIDER_TYPE.WALUTOMAT]: ACCOUNT_TYPES.walutomat,
   [BANK_PROVIDER_TYPE.SIMPLEFIN]: ACCOUNT_TYPES.simplefin,
+  [BANK_PROVIDER_TYPE.PLAID]: ACCOUNT_TYPES.plaid,
 };
 
 /**
@@ -73,7 +75,7 @@ const createAccountsForConnection = withTransaction(
     const provider = bankProviderRegistry.get(connection.providerType as BANK_PROVIDER_TYPE);
 
     // Fetch all available accounts from provider
-    const availableAccounts = await provider.fetchAccounts(connectionId);
+    const availableAccounts = await provider.fetchAccounts({ connectionId });
 
     // Filter to only selected accounts
     const selectedAccounts = availableAccounts.filter((acc) => accountExternalIds.includes(acc.externalId));

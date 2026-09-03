@@ -174,9 +174,9 @@ const handleConnect = async () => {
   try {
     isLoading.value = true;
 
-    const response = await connectProvider(BANK_PROVIDER_TYPE.WALUTOMAT, {
-      apiKey: apiKey.value,
-      privateKey: privateKey.value,
+    const response = await connectProvider({
+      providerType: BANK_PROVIDER_TYPE.WALUTOMAT,
+      credentials: { apiKey: apiKey.value, privateKey: privateKey.value },
     });
 
     connectionId.value = response.connectionId;

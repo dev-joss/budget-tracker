@@ -4,6 +4,7 @@ import { EnableBankingProvider } from './enablebanking';
 import { LunchFlowProvider } from './lunchflow/lunchflow.provider';
 import { MonobankProvider } from './monobank';
 import { ensureMonobankQueueRecovery } from './monobank/transaction-sync-queue';
+import { PlaidProvider } from './plaid';
 import { bankProviderRegistry } from './registry';
 import { SimplefinProvider } from './simplefin/simplefin.provider';
 import { WalutomatProvider } from './walutomat';
@@ -28,6 +29,8 @@ export function initializeBankProviders(): void {
 
     // Register SimpleFIN Bridge provider
     bankProviderRegistry.register(new SimplefinProvider());
+
+    bankProviderRegistry.register(new PlaidProvider());
 
     const registeredTypes = bankProviderRegistry.listTypes();
     logger.info(

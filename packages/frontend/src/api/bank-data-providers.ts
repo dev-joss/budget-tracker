@@ -34,6 +34,23 @@ export interface BankConnection {
   bankName: string | null;
 }
 
+interface PlaidConfiguration {
+  configured: true;
+  secretConfigured: true;
+  clientId: string;
+  environment: 'sandbox' | 'production';
+  countryCodes: string[];
+  transactionsDaysRequested: number;
+}
+
+export interface PlaidConfigurationInput {
+  clientId: string;
+  secret?: string;
+  environment: 'sandbox' | 'production';
+  countryCodes: string[];
+  transactionsDaysRequested: number;
+}
+
 interface BankConnectionDetails {
   id: string;
   providerType: BANK_PROVIDER_TYPE;
@@ -117,11 +134,15 @@ export const getConnectionDetails = async (connectionId: string): Promise<BankCo
   return response.connection;
 };
 
-export const connectProvider = async (
-  providerType: BANK_PROVIDER_TYPE,
-  credentials: Record<string, unknown>,
-  providerName?: string,
-): Promise<{ connectionId: string; authUrl?: string; message: string }> => {
+export const connectProvider = async ({
+  providerType,
+  credentials,
+  providerName,
+}: {
+  providerType: BANK_PROVIDER_TYPE;
+  credentials: Record<string, unknown>;
+  providerName?: string;
+}): Promise<{ connectionId: string; authUrl?: string; message: string }> => {
   const response = await api.post(`/bank-data-providers/${providerType}/connect`, {
     credentials,
     providerName,
@@ -142,9 +163,41 @@ export const disconnectProvider = async ({
   return response;
 };
 
-export const reauthorizeConnection = async (connectionId: string): Promise<{ authUrl: string; message: string }> => {
+type ReauthorizationResponse = ({ authUrl: string } | { linkToken: string }) & { message: string };
+
+export const reauthorizeConnection = async ({
+  connectionId,
+}: {
+  connectionId: string;
+}): Promise<ReauthorizationResponse> => {
   const response = await api.post(`/bank-data-providers/connections/${connectionId}/reauthorize`);
   return response;
+};
+
+export const createPlaidLinkToken = async (): Promise<{ linkToken: string; expiration: string }> => {
+  return api.post('/bank-data-providers/plaid/link-token');
+};
+
+export const completePlaidUpdate = async ({ connectionId }: { connectionId: string }): Promise<void> => {
+  await api.post('/bank-data-providers/plaid/update-complete', { connectionId });
+};
+
+export const getPlaidConfiguration = async (): Promise<PlaidConfiguration | null> => {
+  const response = await api.get<{ configuration: PlaidConfiguration | null }>(
+    '/bank-data-providers/plaid/configuration',
+  );
+  return response.configuration;
+};
+
+export const updatePlaidConfiguration = async ({
+  configuration,
+}: {
+  configuration: PlaidConfigurationInput;
+}): Promise<PlaidConfiguration> => {
+  const response = (await api.put('/bank-data-providers/plaid/configuration', configuration)) as {
+    configuration: PlaidConfiguration;
+  };
+  return response.configuration;
 };
 
 export const updateConnectionDetails = async (

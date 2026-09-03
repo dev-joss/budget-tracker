@@ -330,6 +330,7 @@
 <script lang="ts" setup>
 import {
   SyncStatus,
+  completePlaidUpdate,
   disconnectProvider,
   getAvailableAccounts,
   reauthorizeConnection,
@@ -363,6 +364,7 @@ import { useFormatCurrency } from '@/composable/formatters';
 import { useBaseBalanceTotals } from '@/composable/use-base-balance-totals';
 import { useDateLocale } from '@/composable/use-date-locale';
 import { useSyncStatus } from '@/composable/use-sync-status';
+import { createPlaidLink, loadPlaidLink, type PlaidLinkHandler } from '@/lib/plaid-link';
 import { ApiErrorResponseError, isNotFoundError } from '@/js/errors';
 import { cn } from '@/lib/utils';
 import { ROUTES_NAMES } from '@/routes';
@@ -382,7 +384,7 @@ import {
   UnlinkIcon,
 } from '@lucide/vue';
 import { storeToRefs } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -746,7 +748,27 @@ const handleReconnect = async () => {
   try {
     isReconnectPending.value = true;
     // Call reauthorization API
-    const response = await reauthorizeConnection(connectionId.value);
+    const response = await reauthorizeConnection({ connectionId: connectionId.value });
+
+    if ('linkToken' in response) {
+      const flow = { type: 'update', linkToken: response.linkToken, connectionId: connectionId.value };
+      sessionStorage.setItem('plaidLinkFlow', JSON.stringify(flow));
+      await loadPlaidLink();
+      plaidLinkHandler?.destroy();
+      plaidLinkHandler = createPlaidLink({
+        token: response.linkToken,
+        onSuccess: () => {
+          void completePlaidUpdate({ connectionId: connectionId.value })
+            .then(() => window.location.reload())
+            .catch(handleReconnectError);
+        },
+        onExit: () => {
+          isReconnectPending.value = false;
+        },
+      });
+      plaidLinkHandler.open();
+      return;
+    }
 
     // Store connection ID for OAuth callback
     localStorage.setItem('pendingEnableBankingConnectionId', String(connectionId.value));
@@ -754,10 +776,20 @@ const handleReconnect = async () => {
     // Redirect to the authorization URL
     window.location.href = response.authUrl;
   } catch (err) {
-    const message = err instanceof Error ? err.message : t('pages.integrations.details.errors.reauthorizationFailed');
-    isReconnectPending.value = false;
-    isReconnectDialogOpen.value = false;
-    addErrorNotification(message);
+    handleReconnectError(err);
   }
 };
+
+let plaidLinkHandler: PlaidLinkHandler | null = null;
+const handleReconnectError = (reconnectError: unknown) => {
+  const message =
+    reconnectError instanceof Error
+      ? reconnectError.message
+      : t('pages.integrations.details.errors.reauthorizationFailed');
+  isReconnectPending.value = false;
+  isReconnectDialogOpen.value = false;
+  addErrorNotification(message);
+};
+
+onBeforeUnmount(() => plaidLinkHandler?.destroy());
 </script>

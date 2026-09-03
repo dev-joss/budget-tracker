@@ -25,6 +25,8 @@
         </div>
       </div>
 
+      <PlaidConfigurationForm />
+
       <div>
         <h3 class="mb-2 text-lg font-medium">{{ $t('settings.admin.priceUpload.title') }}</h3>
         <p class="mb-4 text-sm leading-relaxed">{{ $t('settings.admin.priceUpload.description') }}</p>
@@ -49,6 +51,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import SecurityPriceUpload from './security-price-upload.vue';
+import PlaidConfigurationForm from './plaid-configuration-form.vue';
 
 const userStore = useUserStore();
 const router = useRouter();

@@ -158,6 +158,7 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
 
   // bank integrations
   bankProviders: [bankConnectionChange, 'bank-providers'] as const,
+  plaidConfiguration: [bankConnectionChange, 'plaid-configuration'] as const,
   bankConnectionDetails: [bankConnectionChange, 'bank-connection-details'] as const,
   bankAvailableExternalAccounts: [bankConnectionChange, 'bank-available-external-accounts'] as const,
   bankConnections: [bankConnectionChange, 'bank-connections'] as const,

@@ -1,5 +1,10 @@
 <template>
-  <ResponsiveDialog :open="open" dialog-content-class="sm:max-w-2xl" @update:open="emit('update:open', $event)">
+  <ResponsiveDialog
+    :open="open"
+    :modal="false"
+    dialog-content-class="sm:max-w-2xl"
+    @update:open="emit('update:open', $event)"
+  >
     <template #title>{{ dialogTitle }}</template>
 
     <!-- Step 1: Select Provider -->
@@ -122,6 +127,11 @@
         @connected="handleProviderConnected"
         @cancel="handleCancel"
       />
+      <PlaidConnector
+        v-else-if="selectedProviderType === BANK_PROVIDER_TYPE.PLAID"
+        @connected="handleProviderConnected"
+        @cancel="handleCancel"
+      />
     </template>
   </ResponsiveDialog>
 </template>
@@ -151,6 +161,7 @@ import { useI18n } from 'vue-i18n';
 import EnableBankingConnector from './enable-banking-connector.vue';
 import LunchFlowConnector from './lunchflow-connector.vue';
 import MonobankConnector from './monobank-connector.vue';
+import PlaidConnector from './plaid-connector.vue';
 import SimplefinConnector from './simplefin-connector.vue';
 import WalutomatConnector from './walutomat-connector.vue';
 

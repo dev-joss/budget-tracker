@@ -355,12 +355,15 @@ const selectBank = async (bank: ASPSP) => {
 
     currentStep.value = 4;
     // Connect provider - this will return the auth URL
-    const response = await connectProvider(BANK_PROVIDER_TYPE.ENABLE_BANKING, {
-      appId: appId.value,
-      privateKey: privateKey.value,
-      bankName: bank.name,
-      bankCountry: bank.country,
-      maxConsentValidity: bank.maximum_consent_validity, // Pass bank's max consent validity
+    const response = await connectProvider({
+      providerType: BANK_PROVIDER_TYPE.ENABLE_BANKING,
+      credentials: {
+        appId: appId.value,
+        privateKey: privateKey.value,
+        bankName: bank.name,
+        bankCountry: bank.country,
+        maxConsentValidity: bank.maximum_consent_validity, // Pass bank's max consent validity
+      },
     });
 
     connectionId.value = response.connectionId;

@@ -111,14 +111,14 @@ export class WalutomatProvider extends BaseBankDataProvider {
   // Connection Management
   // ============================================================================
 
-  async connect(userId: number, credentials: unknown): Promise<string> {
+  async connect({ userId, credentials }: { userId: number; credentials: unknown }): Promise<string> {
     if (!this.isValidCredentials(credentials)) {
       throw new ValidationError({
         message: t({ key: 'bankDataProviders.walutomat.invalidCredentialsFormat' }),
       });
     }
 
-    const isValid = await this.validateCredentials(credentials);
+    const isValid = await this.validateCredentials({ credentials });
     if (!isValid) {
       throw new ForbiddenError({ message: t({ key: 'bankDataProviders.walutomat.invalidApiKey' }) });
     }
@@ -150,13 +150,13 @@ export class WalutomatProvider extends BaseBankDataProvider {
     return connection.id;
   }
 
-  async disconnect(connectionId: string): Promise<void> {
+  async disconnect({ connectionId }: { connectionId: string }): Promise<void> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
     await connection.destroy();
   }
 
-  async validateCredentials(credentials: unknown): Promise<boolean> {
+  async validateCredentials({ credentials }: { credentials: unknown }): Promise<boolean> {
     if (!this.isValidCredentials(credentials)) {
       return false;
     }
@@ -169,7 +169,13 @@ export class WalutomatProvider extends BaseBankDataProvider {
     return await client.testConnection();
   }
 
-  async refreshCredentials(connectionId: string, newCredentials: unknown): Promise<void> {
+  async refreshCredentials({
+    connectionId,
+    newCredentials,
+  }: {
+    connectionId: string;
+    newCredentials: unknown;
+  }): Promise<void> {
     if (!this.isValidCredentials(newCredentials)) {
       throw new ValidationError({
         message: t({ key: 'bankDataProviders.walutomat.invalidCredentialsFormat' }),
@@ -179,7 +185,7 @@ export class WalutomatProvider extends BaseBankDataProvider {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
-    const isValid = await this.validateCredentials(newCredentials);
+    const isValid = await this.validateCredentials({ credentials: newCredentials });
     if (!isValid) {
       throw new ForbiddenError({ message: t({ key: 'bankDataProviders.walutomat.invalidApiKey' }) });
     }
@@ -202,7 +208,7 @@ export class WalutomatProvider extends BaseBankDataProvider {
   // Account Operations
   // ============================================================================
 
-  async fetchAccounts(connectionId: string): Promise<ProviderAccount[]> {
+  async fetchAccounts({ connectionId }: { connectionId: string }): Promise<ProviderAccount[]> {
     const credentials = await this.getValidatedCredentials(connectionId);
 
     let balances: WalletBalance[];
@@ -233,11 +239,15 @@ export class WalutomatProvider extends BaseBankDataProvider {
   // Transaction Operations
   // ============================================================================
 
-  async fetchTransactions(
-    connectionId: string,
-    accountExternalId: string,
-    dateRange?: DateRange,
-  ): Promise<ProviderTransaction[]> {
+  async fetchTransactions({
+    connectionId,
+    accountExternalId,
+    dateRange,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+    dateRange?: DateRange;
+  }): Promise<ProviderTransaction[]> {
     const credentials = await this.getValidatedCredentials(connectionId);
     const client = this.createApiClient(credentials);
     const currency = currencyFromExternalId(accountExternalId);
@@ -461,7 +471,13 @@ export class WalutomatProvider extends BaseBankDataProvider {
   // Balance Operations
   // ============================================================================
 
-  async fetchBalance(connectionId: string, accountExternalId: string): Promise<ProviderBalance> {
+  async fetchBalance({
+    connectionId,
+    accountExternalId,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+  }): Promise<ProviderBalance> {
     const credentials = await this.getValidatedCredentials(connectionId);
     const client = this.createApiClient(credentials);
     const currency = currencyFromExternalId(accountExternalId);
@@ -482,14 +498,20 @@ export class WalutomatProvider extends BaseBankDataProvider {
     };
   }
 
-  async refreshBalance(connectionId: string, systemAccountId: string): Promise<void> {
+  async refreshBalance({
+    connectionId,
+    systemAccountId,
+  }: {
+    connectionId: string;
+    systemAccountId: string;
+  }): Promise<void> {
     const account = await this.getSystemAccount(systemAccountId);
 
     if (!account.externalId) {
       throw new BadRequestError({ message: t({ key: 'bankDataProviders.walutomat.accountNoExternalId' }) });
     }
 
-    const balance = await this.fetchBalance(connectionId, account.externalId);
+    const balance = await this.fetchBalance({ connectionId, accountExternalId: account.externalId });
 
     await writeBankBalanceWithHistory({ account, balance: Money.fromCents(balance.amount) });
   }
