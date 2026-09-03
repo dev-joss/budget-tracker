@@ -1,7 +1,7 @@
 # Project Rules & Conventions
 
 - **Backend work**: Read `.claude/docs/backend-conventions.md` before writing backend code
-- **Frontend work**: Read `.claude/skills/frontend-rules/SKILL.md` before writing frontend code
+- **Frontend work**: Read `.agents/skills/frontend-rules/SKILL.md` before writing frontend code
 
 ## Testing Patterns
 
@@ -21,7 +21,7 @@ Always test through the actual API endpoints to ensure full integration testing.
 - Every new backend endpoint (route + controller + service) **MUST** include an e2e test before the work is considered complete.
 - **Auto-trigger**: After implementing a new endpoint, automatically write e2e tests as the next step – don't wait to be asked.
 - Minimum coverage: **happy path**, **empty state**, and at least one **error case**.
-- Follow the `e2e-test-creator` skill conventions (`.claude/skills/e2e-test-creator/SKILL.md`) for structure and patterns.
+- Follow the `e2e-test-creator` skill conventions (`.agents/skills/e2e-test-creator/SKILL.md`) for structure and patterns.
 - Run the tests automatically after writing them – do not wait for user confirmation.
 
 **Bug Fix Workflow: Test-First Approach**
