@@ -2,6 +2,8 @@
 
 This guide will walk you through setting up the Budget Tracker project on your local machine.
 
+For development tools inside Docker, use the [local dev container guide](../.devcontainer/README.md).
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
