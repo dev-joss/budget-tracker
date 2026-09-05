@@ -555,43 +555,60 @@ describe('Securities Daily Sync Service (via API Endpoint)', () => {
   });
 
   describe('Concurrent Execution Prevention', () => {
-    it('reports per-side ok=false when a second trigger hits while the first holds the lock', async () => {
-      // Wait for any async work from previous tests to release the lock
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    it.each([
+      { name: 'reports the stocks lock conflict for another admin', useSecondAdmin: true },
+      { name: 'rate-limits a second trigger from the same admin', useSecondAdmin: false },
+    ])('$name', async ({ useSecondAdmin }) => {
+      const otherUser = useSecondAdmin ? await helpers.signUpSecondUser() : undefined;
+      const otherProfile = otherUser
+        ? await helpers.asUser({ cookies: otherUser.cookies, fn: () => helpers.getUserInfo({ raw: true }) })
+        : undefined;
+      const originalAdmins = process.env.ADMIN_USERS;
 
-      // Mock slow Yahoo response so the first trigger holds the stocks lock
-      mockedYahooChart.mockImplementation(
-        () => new Promise((resolve) => setTimeout(() => resolve({ quotes: [] }), 300)),
-      );
+      let markStarted!: () => void;
+      let releaseSync!: () => void;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        releaseSync = resolve;
+      });
+      const syncStartDate = format(subDays(new Date(), STOCKS_LOOKBACK_DAYS), 'yyyy-MM-dd');
+      mockedYahooChart.mockImplementation(async (_symbol, options) => {
+        // Holding creation requests years of history. Gate only the daily sync window.
+        if (options.period1 === syncStartDate) {
+          markStarted();
+          await release;
+        }
+        return { quotes: [] };
+      });
 
+      if (otherProfile) process.env.ADMIN_USERS = `${originalAdmins},${otherProfile.username}`;
       const firstSyncPromise = helpers.triggerSecuritiesSync();
-      const secondSyncPromise = helpers.triggerSecuritiesSync();
-
-      // Both requests now resolve 200 (allSettled surfaces per-side outcomes
-      // instead of throwing). The second request's `stocks.ok` should be false
-      // since the first run still holds `lock:sync:securities-prices:stocks`.
-      const [firstResponse, secondResponse] = await Promise.all([firstSyncPromise, secondSyncPromise]);
+      let secondResponse: Awaited<ReturnType<typeof helpers.triggerSecuritiesSync>>;
+      try {
+        await started;
+        secondResponse = otherUser
+          ? await helpers.asUser({ cookies: otherUser.cookies, fn: () => helpers.triggerSecuritiesSync() })
+          : await helpers.triggerSecuritiesSync();
+      } finally {
+        releaseSync();
+        if (originalAdmins === undefined) delete process.env.ADMIN_USERS;
+        else process.env.ADMIN_USERS = originalAdmins;
+        await firstSyncPromise;
+      }
+      const firstResponse = await firstSyncPromise;
 
       expect(firstResponse.statusCode).toBe(200);
-      expect(secondResponse.statusCode).toBe(200);
-
-      const firstBody = helpers.extractResponse(firstResponse) as unknown as {
-        stocks: { ok: boolean; error?: string };
-        crypto: { ok: boolean; error?: string };
-      };
-      const secondBody = helpers.extractResponse(secondResponse) as unknown as {
-        stocks: { ok: boolean; error?: string };
-        crypto: { ok: boolean; error?: string };
-      };
-
-      const stocksOkResults = [firstBody.stocks.ok, secondBody.stocks.ok];
-      // Exactly one of the two requests held the stocks lock; the other was rejected.
-      expect(stocksOkResults.filter((ok) => ok)).toHaveLength(1);
-      expect(stocksOkResults.filter((ok) => !ok)).toHaveLength(1);
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      mockedYahooChart.mockClear();
+      expect(helpers.extractResponse(firstResponse)).toMatchObject({ stocks: { ok: true } });
+      if (useSecondAdmin) {
+        expect(secondResponse.statusCode).toBe(200);
+        expect(helpers.extractResponse(secondResponse)).toMatchObject({ stocks: { ok: false } });
+      } else {
+        expect(secondResponse.statusCode).toBe(429);
+        expect(Number(secondResponse.get('Retry-After'))).toBeGreaterThan(0);
+        expect(Number(secondResponse.get('Retry-After'))).toBeLessThanOrEqual(300);
+      }
     });
   });
 

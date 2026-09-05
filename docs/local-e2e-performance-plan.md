@@ -1,7 +1,7 @@
 # Local backend e2e performance plan
 
-Status: T0 complete; T1 implemented with acceptance pending full-suite investigation; T2–T8 remain pending.
-Evidence date: 2026-09-04.
+Status: T0 and T1 complete; T1 accepted after the full-suite failure investigation; T2–T8 remain pending.
+Evidence date: 2026-09-05 UTC.
 
 ## Objective and scope
 
@@ -84,7 +84,7 @@ Impact ranking and implementation order differ. Persistent cache work comes earl
 | ID | Task | Depends on | Initial status |
 | --- | --- | --- | --- |
 | T0 | Establish comparable local baseline | Existing evidence | Complete |
-| T1 | Persist local services and migrated template | T0 | Implemented; acceptance pending |
+| T1 | Persist local services and migrated template | T0 | Complete; full suite passed |
 | T2 | Persist Jest transform cache | T0; integrate with T1 | Pending |
 | T3 | Reduce eager imports; audit contexts and resource lifetime | T0 | Pending |
 | T4 | Reuse application initialization across files | T3 | Pending |
@@ -226,3 +226,13 @@ Preserve raw results. Do not overwrite earlier captures or silently change the b
 - Checks passed: 21 key/date unit cases, final container typecheck, backend lint, shell syntax, focused HTTP batches, recovery diagnostics, and restored-source/diff checks. Lint has existing warnings outside changed files. Host typecheck initially failed because its installed `ofx-js` module was missing; the lockfile-built container typecheck passed. No memory/restart or natural-shutdown claim is made; existing Jest forced-exit warnings remain.
 - **Acceptance is not complete.** The final full e2e command ran to completion in **288.151 s**: **230 suites passed, 1 failed, 2 skipped; 2,630 tests passed, 1 failed, 52 skipped, 7 TODOs**. The failure was the import-batch filter at `src/services/transactions/get-transactions.e2e.ts:693` (expected 2 rows, received 0). That file passed all 16 tests alone under both T1 and the original runner. An earlier full attempt, stopped to finish schema verification, reported a securities-sync concurrency failure (429 versus expected 200); that file also passed all 13 tests under both runners. The cause of these full-run failures remains unproved.
 - Per the stop-early rule, no further full-suite retry or speculative application/test fix was made. Next bounded work: investigate the full-suite-only failure with user direction before accepting T1. T2 remains pending.
+
+### 2026-09-05 UTC — T1 full-suite failure investigation and acceptance
+
+- Started from `788beadd` on `perf/testing`. No commit was made. Full evidence, commands, failed reproducers, result summaries, and the implementation diff are in [`t1-suite-isolation-20260905/readme.md`](../packages/backend/node-profiles/t1-suite-isolation-20260905/readme.md). Prior captures and both untracked directories were preserved.
+- The import-batch failure depends on a preceding fully skipped file and Jest worker reuse. Setup creates queue workers, but Jest skips `afterAll` for files with no enabled tests. The skipped Microsoft Money file's CSV worker consumed a later file's import after its module runtime was torn down. The original full log contains that stack immediately before the batch failure. A two-file, one-worker npm reproducer failed with both T1 and the original `9a631da7` runner (3 failures, including the same empty batch). This proves the cause predates T1.
+- A small Jest environment now awaits existing resource cleanup on `run_finish`, including skipped files, before module teardown. Cleanup errors propagate. The same two-file selection passed all 16 active tests after the fix. Import assertions also check row errors and imported count. Three focused unit tests cover cleanup timing, awaiting, and error propagation.
+- The securities failure is separate: both requests used one admin, whose route allows one request per five minutes. A controlled provider gate reproduced 429 with the original 200 assertion. Two admins now test global lock contention (both 200; first stocks.ok true, second false); a separate same-admin case checks 429 and Retry-After. The gate distinguishes daily sync from holding history requests. No application/rate-limit code, retries, longer timeouts, or weaker lock assertions were added. The combined three-file selection passed 30 active tests.
+- Final checks passed: 3 cleanup unit tests, backend lint, changed-file formatting, whitespace check, and typecheck in the final lockfile-built container. Host typecheck still lacks the already documented installed `ofx-js`; a test header typing error found during implementation was corrected. Lint has existing warnings outside this task.
+- Required final `npm run test:e2e` passed on its first run after the fixes: **231 suites passed, 2 skipped; 2,632 tests passed, 52 skipped, 7 TODOs; exit 0; Jest time 268.564 s**. Default four-worker/1 GB recycling settings were retained. No performance comparison was repeated.
+- **T1 acceptance is complete.** The prior service/template checks plus this full-suite result satisfy T1 validation. Jest still reports forced worker exit; this is recorded, and no full natural-shutdown claim is made. T2–T8 remain pending; no work on them was started.

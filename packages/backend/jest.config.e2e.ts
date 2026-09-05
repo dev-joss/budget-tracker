@@ -5,6 +5,7 @@ console.log('❗ RUNNING INTEGRATION TESTS');
 /** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
 export default {
   ...baseConfig,
+  testEnvironment: '<rootDir>/src/tests/e2e-environment.ts',
   maxWorkers: Number(process.env.JEST_WORKERS_AMOUNT),
   testMatch: ['<rootDir>/src/**/?(*.)+(e2e).[jt]s?(x)'],
   setupFilesAfterEnv: ['<rootDir>/src/tests/setupIntegrationTests.ts'],

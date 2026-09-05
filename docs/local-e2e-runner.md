@@ -38,3 +38,7 @@ Do not run overlapping e2e commands or change test-service configuration during 
 ## Scope
 
 This implements the local service and template lifecycle authorized by T1 in [the performance plan](local-e2e-performance-plan.md). No prior architecture decision record for the test runner was found. The application architecture and CI runner behavior remain unchanged. This document describes the design; correctness checks and measured performance belong in the plan's work log.
+
+## Test-file cleanup
+
+The e2e Jest environment closes each file's queue workers and other test resources at `run_finish`, before Jest tears down its modules. This also runs when all tests in a file are skipped. A skipped file must not leave queue consumers alive for the next file in the same worker. Cleanup errors fail the run. This does not reuse the application between files.
