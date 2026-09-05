@@ -8,6 +8,11 @@ else
     exit 1
 fi
 
+# Local services and template reuse have a separate lifecycle from CI.
+if [ -z "${CI:-}" ]; then
+    exec bash ./src/tests/setup-local-e2e-tests.sh "$@"
+fi
+
 # Namespace the docker compose project by the worktree basename so multiple
 # worktrees get their own containers/volumes and do not destroy each other's
 # template DB / worker DBs / images.

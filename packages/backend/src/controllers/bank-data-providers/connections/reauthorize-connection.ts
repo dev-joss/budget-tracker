@@ -28,20 +28,17 @@ export default createController(
     // Get provider
     const provider = bankProviderRegistry.get(connection.providerType as BANK_PROVIDER_TYPE);
 
-    // Check if provider has reauthorize method (Enable Banking specific)
-    if (!('reauthorize' in provider)) {
+    if (!provider.reauthorize) {
       throw new Error(
         t({ key: 'errors.providerNoReauthorization', variables: { providerType: connection.providerType } }),
       );
     }
 
-    // Call provider's reauthorize method
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const authUrl = await (provider as any).reauthorize(params.connectionId);
+    const reauthorization = await provider.reauthorize({ connectionId: params.connectionId });
 
     return {
       data: {
-        authUrl,
+        ...reauthorization,
         message: t({ key: 'bankDataProviders.reauthorizationStarted' }),
       },
     };

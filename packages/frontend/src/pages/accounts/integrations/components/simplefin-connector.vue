@@ -187,7 +187,10 @@ const handleConnectProvider = async () => {
     isLoading.value = true;
     connectError.value = null;
 
-    const response = await connectProvider(BANK_PROVIDER_TYPE.SIMPLEFIN, { setupToken: setupToken.value });
+    const response = await connectProvider({
+      providerType: BANK_PROVIDER_TYPE.SIMPLEFIN,
+      credentials: { setupToken: setupToken.value },
+    });
 
     connectionId.value = response.connectionId;
 

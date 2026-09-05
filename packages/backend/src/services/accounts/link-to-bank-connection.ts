@@ -27,6 +27,7 @@ const PROVIDER_TO_ACCOUNT_TYPE: Record<BANK_PROVIDER_TYPE, ACCOUNT_TYPES> = {
   [BANK_PROVIDER_TYPE.LUNCHFLOW]: ACCOUNT_TYPES.lunchflow,
   [BANK_PROVIDER_TYPE.WALUTOMAT]: ACCOUNT_TYPES.walutomat,
   [BANK_PROVIDER_TYPE.SIMPLEFIN]: ACCOUNT_TYPES.simplefin,
+  [BANK_PROVIDER_TYPE.PLAID]: ACCOUNT_TYPES.plaid,
 };
 
 interface LinkAccountToBankConnectionPayload {
@@ -94,7 +95,7 @@ export const linkAccountToBankConnection = withTransaction(
     }
 
     const provider = bankProviderRegistry.get(bankConnection.providerType as BANK_PROVIDER_TYPE);
-    const externalAccounts = await provider.fetchAccounts(connectionId);
+    const externalAccounts = await provider.fetchAccounts({ connectionId });
 
     const externalAccount = externalAccounts.find((acc) => acc.externalId === externalAccountId);
 

@@ -29,7 +29,7 @@ export const listExternalAccounts = withTransaction(
     }
 
     const provider = bankProviderRegistry.get(connection.providerType as BANK_PROVIDER_TYPE);
-    const accounts = await provider.fetchAccounts(connectionId);
+    const accounts = await provider.fetchAccounts({ connectionId });
 
     return accounts.map((acc) => ({
       externalId: acc.externalId,

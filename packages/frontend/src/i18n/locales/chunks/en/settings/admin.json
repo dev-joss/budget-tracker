@@ -15,6 +15,46 @@
           "adminRequired": "Admin privileges required for this action"
         }
       },
+      "plaid": {
+        "title": "Plaid Configuration",
+        "description": "Configure the Plaid application credentials used by all users of this installation.",
+        "clientId": {
+          "label": "Client ID",
+          "placeholder": "Enter the Plaid client ID"
+        },
+        "secret": {
+          "label": "Secret",
+          "placeholder": "Enter the Plaid secret",
+          "configuredPlaceholder": "Leave blank to keep the current secret"
+        },
+        "environment": {
+          "label": "Environment",
+          "placeholder": "Select an environment",
+          "sandbox": "Sandbox",
+          "production": "Production"
+        },
+        "countryCodes": {
+          "label": "Country codes",
+          "us": "United States",
+          "ca": "Canada"
+        },
+        "transactionsDays": {
+          "label": "Transaction history (days)",
+          "placeholder": "Enter the number of days"
+        },
+        "actions": {
+          "save": "Save configuration",
+          "saving": "Saving..."
+        },
+        "notifications": {
+          "saved": "Plaid configuration saved successfully"
+        },
+        "validation": {
+          "clientIdRequired": "Client ID is required.",
+          "secretRequired": "Secret is required.",
+          "countryRequired": "Select at least one country."
+        }
+      },
       "priceUpload": {
         "title": "Manual Security Price Upload",
         "description": "Upload historical price data for securities via CSV or JSON files",

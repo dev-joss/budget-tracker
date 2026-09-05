@@ -679,6 +679,8 @@ describe('GET /transactions — batchId filter', () => {
     });
     const progress = await waitForCsvImportCompletion({ jobId });
     expectCsvImportCompleted(progress);
+    expect(progress.summary.errors).toEqual([]);
+    expect(progress.summary.imported).toBe(2);
     return progress.summary;
   };
 

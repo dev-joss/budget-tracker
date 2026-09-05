@@ -116,7 +116,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
    * Start connection flow - returns authorization URL for user
    * Full connection is completed via handleOAuthCallback()
    */
-  async connect(userId: number, credentials: unknown): Promise<string> {
+  async connect({ userId, credentials }: { userId: number; credentials: unknown }): Promise<string> {
     if (!this.isValidConnectionParams(credentials)) {
       throw new ValidationError({ message: t({ key: 'bankDataProviders.enableBanking.invalidCredentialsFormat' }) });
     }
@@ -136,7 +136,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
 
     // Test connection to Enable Banking API
     const apiClient = new EnableBankingApiClient(initialCredentials);
-    const isValid = await this.validateCredentials(initialCredentials);
+    const isValid = await this.validateCredentials({ credentials: initialCredentials });
     if (!isValid) {
       throw new ForbiddenError({ message: t({ key: 'bankDataProviders.enableBanking.invalidCredentials' }) });
     }
@@ -376,7 +376,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
    * Reauthorize an existing connection (renew consent without disconnecting)
    * Returns the new authorization URL for user to complete OAuth flow
    */
-  async reauthorize(connectionId: string): Promise<string> {
+  async reauthorize({ connectionId }: { connectionId: string }): Promise<{ authUrl: string }> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
@@ -459,10 +459,10 @@ export class EnableBankingProvider extends BaseBankDataProvider {
 
     await connection.save();
 
-    return authResponse.url;
+    return { authUrl: authResponse.url };
   }
 
-  async disconnect(connectionId: string): Promise<void> {
+  async disconnect({ connectionId }: { connectionId: string }): Promise<void> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
@@ -485,7 +485,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     await connection.destroy();
   }
 
-  async validateCredentials(credentials: unknown): Promise<boolean> {
+  async validateCredentials({ credentials }: { credentials: unknown }): Promise<boolean> {
     if (!this.isValidCredentials(credentials)) {
       return false;
     }
@@ -505,7 +505,13 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     return await apiClient.testConnection();
   }
 
-  async refreshCredentials(connectionId: string, newCredentials: unknown): Promise<void> {
+  async refreshCredentials({
+    connectionId,
+    newCredentials,
+  }: {
+    connectionId: string;
+    newCredentials: unknown;
+  }): Promise<void> {
     if (!this.isValidCredentials(newCredentials)) {
       throw new ValidationError({ message: t({ key: 'bankDataProviders.enableBanking.invalidCredentialsFormat' }) });
     }
@@ -514,7 +520,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     this.validateProviderType(connection);
 
     // Validate new credentials
-    const isValid = await this.validateCredentials(newCredentials);
+    const isValid = await this.validateCredentials({ credentials: newCredentials });
     if (!isValid) {
       throw new ForbiddenError({ message: t({ key: 'bankDataProviders.enableBanking.invalidCredentials' }) });
     }
@@ -536,7 +542,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
   // Account Operations
   // ============================================================================
 
-  async fetchAccounts(connectionId: string): Promise<ProviderAccount[]> {
+  async fetchAccounts({ connectionId }: { connectionId: string }): Promise<ProviderAccount[]> {
     const connection = await this.getConnection(connectionId);
     this.validateProviderType(connection);
 
@@ -621,12 +627,17 @@ export class EnableBankingProvider extends BaseBankDataProvider {
    * @param dateRange - Optional date range filter
    * @param accountExternalIdForHash - Stable identifier for hash generation (defaults to accountApiUid for backward compatibility)
    */
-  async fetchTransactions(
-    connectionId: string,
-    accountApiUid: string,
-    dateRange?: DateRange,
-    accountExternalIdForHash?: string,
-  ): Promise<ProviderTransaction[]> {
+  async fetchTransactions({
+    connectionId,
+    accountExternalId: accountApiUid,
+    dateRange,
+    accountExternalIdForHash,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+    dateRange?: DateRange;
+    accountExternalIdForHash?: string;
+  }): Promise<ProviderTransaction[]> {
     const credentials = await this.getValidatedCredentials(connectionId);
 
     if (!credentials.sessionId) {
@@ -780,12 +791,12 @@ export class EnableBankingProvider extends BaseBankDataProvider {
           // future-dated entry – a value_date past today – would ask for a date_from
           // the bank rejects on every sync.
           const providerTransactions = latestTransaction
-            ? await this.fetchTransactions(
+            ? await this.fetchTransactions({
                 connectionId,
-                apiUid,
-                { from: new Date(Math.min(latestTransaction.time.getTime(), to.getTime())), to },
-                account.externalId,
-              )
+                accountExternalId: apiUid,
+                dateRange: { from: new Date(Math.min(latestTransaction.time.getTime(), to.getTime())), to },
+                accountExternalIdForHash: account.externalId,
+              })
             : await this.fetchInitialTransactionsWithShrinkingWindow({
                 connectionId,
                 apiUid,
@@ -1024,7 +1035,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
 
           // Always update account balance from bank when syncing
           // This ensures balance stays accurate even if no new transactions were found
-          const balance = await this.fetchBalance(connectionId, apiUid);
+          const balance = await this.fetchBalance({ connectionId, accountExternalId: apiUid });
           await writeBankBalanceWithHistory({ account, balance: Money.fromCents(balance.amount) });
 
           return { transactionIds: createdTransactionIds, extraAutoLinkCandidateIds: bookedUpgradedTransactionIds };
@@ -1197,7 +1208,12 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     for (const days of INITIAL_SYNC_FALLBACK_DAYS) {
       const from = new Date(to.getTime() - days * MS_PER_DAY);
       try {
-        return await this.fetchTransactions(connectionId, apiUid, { from, to }, accountExternalId);
+        return await this.fetchTransactions({
+          connectionId,
+          accountExternalId: apiUid,
+          dateRange: { from, to },
+          accountExternalIdForHash: accountExternalId,
+        });
       } catch (error) {
         if (!isAspspDateRangeRejection(error)) {
           logger.info(`Enable Banking initial sync: non-retryable error during ${days}-day window attempt`, {
@@ -1227,7 +1243,13 @@ export class EnableBankingProvider extends BaseBankDataProvider {
   // Balance Operations
   // ============================================================================
 
-  async fetchBalance(connectionId: string, accountExternalId: string): Promise<ProviderBalance> {
+  async fetchBalance({
+    connectionId,
+    accountExternalId,
+  }: {
+    connectionId: string;
+    accountExternalId: string;
+  }): Promise<ProviderBalance> {
     const credentials = await this.getValidatedCredentials(connectionId);
 
     if (!credentials.sessionId) {
@@ -1264,7 +1286,13 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     };
   }
 
-  async refreshBalance(connectionId: string, systemAccountId: string): Promise<void> {
+  async refreshBalance({
+    connectionId,
+    systemAccountId,
+  }: {
+    connectionId: string;
+    systemAccountId: string;
+  }): Promise<void> {
     const account = await this.getSystemAccount(systemAccountId);
 
     if (!account.externalId) {
@@ -1276,7 +1304,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     const metadata = account.externalData as Record<string, unknown> | null;
     const apiUid = (metadata?.uid as string) || account.externalId;
 
-    const balance = await this.fetchBalance(connectionId, apiUid);
+    const balance = await this.fetchBalance({ connectionId, accountExternalId: apiUid });
 
     await writeBankBalanceWithHistory({ account, balance: Money.fromCents(balance.amount) });
   }

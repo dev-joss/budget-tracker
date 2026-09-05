@@ -29,6 +29,7 @@ import PayeeAliases from '@models/payee-aliases.model';
 import PayeeIgnoredNames from '@models/payee-ignored-names.model';
 import PayeeTags from '@models/payee-tags.model';
 import Payees from '@models/payees.model';
+import PlaidConfigurations from '@models/plaid-configurations.model';
 import RefundTransactions from '@models/refund-transactions.model';
 import ResourceShares from '@models/resource-shares.model';
 import ShareInvitations from '@models/share-invitations.model';
@@ -551,6 +552,10 @@ interface BackupExcludedDef {
  * a new model added without one fails that test.
  */
 export const BACKUP_EXCLUDED: readonly BackupExcludedDef[] = [
+  {
+    model: PlaidConfigurations,
+    reason: 'Instance-wide encrypted provider credentials are managed by the deployment administrator.',
+  },
   { model: Currencies, reason: 'Global ISO seed, referenced by natural code — stable across instances.' },
   { model: ExchangeRates, reason: 'Global; self-heals via startup backfill (1999→today) plus the daily rate cron.' },
   { model: MerchantCategoryCodes, reason: 'Global seed; user rows carry the natural code for remap on restore.' },

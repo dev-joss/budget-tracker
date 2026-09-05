@@ -45,7 +45,7 @@ export default createController(
     // If credentials are provided, validate and update via the provider
     if (body.credentials) {
       const provider = bankProviderRegistry.get(connection.providerType as BANK_PROVIDER_TYPE);
-      await provider.refreshCredentials(connection.id, body.credentials);
+      await provider.refreshCredentials({ connectionId: connection.id, newCredentials: body.credentials });
       await connection.reload();
     }
 

@@ -29,6 +29,7 @@ const config: KnipConfig = {
     'nodemon',
     // Sub-packages bundled with their parent; available at runtime without being listed
     '@jest/globals', // bundled with jest
+    'jest-environment-node', // bundled with jest
     'umzug', // bundled with sequelize-cli
   ],
   rules: {

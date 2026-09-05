@@ -1,7 +1,7 @@
 import { ACCOUNT_CATEGORIES, TRANSACTION_TYPES } from '@bt/shared/types';
 import { INVESTMENT_TRANSACTION_CATEGORY } from '@bt/shared/types/investments';
 import { Money } from '@common/types/money';
-import { faker } from '@faker-js/faker';
+import { faker } from '@faker-js/faker/locale/en';
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import Accounts from '@models/accounts.model';

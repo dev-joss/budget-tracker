@@ -390,7 +390,7 @@ describe('Portfolio Summary (GET /investments/portfolios/:id/summary)', () => {
     });
 
     it('converts cost basis at the current rate when the holding currency moved since the buy', async () => {
-      await ExchangeRates.create({
+      await ExchangeRates.upsert({
         baseCode: API_LAYER_BASE_CURRENCY_CODE,
         quoteCode: global.BASE_CURRENCY_CODE,
         rate: BUY_DATE_USD_TO_BASE,

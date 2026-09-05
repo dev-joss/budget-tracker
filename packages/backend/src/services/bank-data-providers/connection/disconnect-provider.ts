@@ -101,7 +101,7 @@ const disconnectProviderInTx = withTransaction(
     });
 
     const provider = bankProviderRegistry.get(connection.providerType as BANK_PROVIDER_TYPE);
-    await provider.disconnect(connectionId);
+    await provider.disconnect({ connectionId });
 
     return { cleanups };
   },

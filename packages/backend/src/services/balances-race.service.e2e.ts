@@ -1,5 +1,5 @@
 import { BANK_PROVIDER_TYPE, TRANSACTION_TYPES, asCents } from '@bt/shared/types';
-import { faker } from '@faker-js/faker';
+import { faker } from '@faker-js/faker/locale/en';
 import { describe, expect, it } from '@jest/globals';
 import { connection } from '@models/index';
 import * as helpers from '@tests/helpers';

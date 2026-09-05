@@ -8,7 +8,7 @@ import type {
   TransactionModel,
 } from '@bt/shared/types';
 
-export interface WorkExpenseIntegrationState {
+interface WorkExpenseIntegrationState {
   connected: boolean;
   initialSyncDate: string | null;
   lastAttemptedSyncAt: string | null;
@@ -22,9 +22,9 @@ export interface ConnectWorkExpenseIntegrationPayload {
   initialSyncDate?: string;
 }
 
-export type WorkExpenseSyncState = 'idle' | 'queued' | 'processing' | 'completed' | 'failed';
+type WorkExpenseSyncState = 'idle' | 'queued' | 'processing' | 'completed' | 'failed';
 
-export interface WorkExpenseSyncStatus {
+interface WorkExpenseSyncStatus {
   status: WorkExpenseSyncState;
   runId?: RecordId;
   processedCount?: number;
@@ -34,7 +34,7 @@ export interface WorkExpenseSyncStatus {
   errorCode?: string;
 }
 
-export interface WorkExpenseSyncTriggerResponse {
+interface WorkExpenseSyncTriggerResponse {
   runId: RecordId;
   status: 'queued';
 }
@@ -84,7 +84,7 @@ export interface WorkExpenseReconciliationItem {
   candidates: WorkExpenseMatchCandidate[];
 }
 
-export interface WorkExpenseReconciliationResponse {
+interface WorkExpenseReconciliationResponse {
   items: WorkExpenseReconciliationItem[];
   total: number;
   limit: number;
