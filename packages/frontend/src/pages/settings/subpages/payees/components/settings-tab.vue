@@ -22,6 +22,23 @@
         />
       </div>
 
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm font-medium">{{ $t('payees.extraction.enable') }}</div>
+          <p class="text-muted-foreground mt-1 text-xs">{{ $t('payees.extraction.consent') }}</p>
+        </div>
+        <Switch
+          :model-value="userSettings?.payeeAiExtractionEnabled ?? false"
+          :disabled="isUpdating"
+          @update:model-value="(value) => handleAiToggle({ value })"
+        />
+      </div>
+      <Button variant="outline" as-child
+        ><RouterLink :to="{ name: ROUTES_NAMES.optimizationsResolvePayees }">{{
+          $t('payees.extraction.title')
+        }}</RouterLink></Button
+      >
+
       <div class="@container/bulk-row flex flex-col gap-3">
         <div>
           <div class="text-sm font-medium">{{ $t('payees.settings.bulkCategorizationMode.label') }}</div>
@@ -68,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import { ROUTES_NAMES } from '@/routes';
 import { useBulkUpdateCategorizationMode } from '@/composable/data-queries/payees';
 import { useNotificationCenter } from '@/components/notification-center';
 import { useUserSettings } from '@/composable/data-queries/user-settings';
@@ -98,6 +116,15 @@ const handleToggle = async (value: boolean) => {
     addErrorNotification(t('payees.settings.payeeFromDescription.errorNotification'));
   }
 };
+
+async function handleAiToggle({ value }: { value: boolean }) {
+  try {
+    await mutateAsync({ ...userSettings.value, payeeAiExtractionEnabled: value });
+    addSuccessNotification(t('payees.extraction.saved'));
+  } catch {
+    addErrorNotification(t('payees.extraction.saveError'));
+  }
+}
 
 interface BulkModeOption {
   value: CATEGORIZATION_MODE;

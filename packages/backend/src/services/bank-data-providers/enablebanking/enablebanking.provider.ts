@@ -1038,7 +1038,11 @@ export class EnableBankingProvider extends BaseBankDataProvider {
           const balance = await this.fetchBalance({ connectionId, accountExternalId: apiUid });
           await writeBankBalanceWithHistory({ account, balance: Money.fromCents(balance.amount) });
 
-          return { transactionIds: createdTransactionIds, extraAutoLinkCandidateIds: bookedUpgradedTransactionIds };
+          return {
+            transactionIds: createdTransactionIds,
+            extraAutoLinkCandidateIds: bookedUpgradedTransactionIds,
+            payeeExtractionTransactionIds: mergedPlannedIds,
+          };
         },
       });
     } catch (error) {

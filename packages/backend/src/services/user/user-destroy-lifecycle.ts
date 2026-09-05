@@ -17,6 +17,7 @@ import { Op, type Transaction } from 'sequelize';
 import { removePendingJobsForUser } from '../bank-data-providers/monobank/transaction-sync-queue';
 import { REDIS_KEYS as SYNC_REDIS_KEYS, clearAccountSyncStatus } from '../bank-data-providers/sync/sync-status-tracker';
 import { withTransaction } from '../common/with-transaction';
+import { lockPayeeNamespace } from '../payees/payee-namespace';
 import { fanOutNotifications } from '../sharing/fan-out-notifications';
 import { convertCrossUserTransfersForAccountIds } from '../sharing/household/convert-cross-user-transfers.service';
 import {
@@ -199,6 +200,7 @@ const runDestroyInTx = withTransaction(
     destroyInTx: (args: DestroyInTxArgs) => Promise<void>;
     stampCreatorSnapshot: boolean;
   }): Promise<DestroyInTxResult | null> => {
+    await lockPayeeNamespace({ userId });
     const user = await Users.default.findByPk(userId);
     if (!user) return null;
 

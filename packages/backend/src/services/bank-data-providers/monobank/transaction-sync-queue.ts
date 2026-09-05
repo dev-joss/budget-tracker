@@ -173,6 +173,7 @@ function buildJobProcessor(queueName: string) {
           // Process each transaction and collect created IDs
           const createdTransactionIds: string[] = [];
           let mergedIntoPlannedCount = 0;
+          const payeeExtractionTransactionIds: string[] = [];
 
           // One probe per batch instead of one per row: an account with no plans skips the
           // matcher entirely.
@@ -192,6 +193,7 @@ function buildJobProcessor(queueName: string) {
             });
             if (result.mergedIntoPlanned) {
               mergedIntoPlannedCount += 1;
+              if (result.mergedId) payeeExtractionTransactionIds.push(result.mergedId);
             } else if (result.createdId !== undefined) {
               createdTransactionIds.push(result.createdId);
             }
@@ -208,7 +210,12 @@ function buildJobProcessor(queueName: string) {
             }
           }
 
-          await linkAndEmitSyncedTransactions({ userId, accountId, transactionIds: createdTransactionIds });
+          await linkAndEmitSyncedTransactions({
+            userId,
+            accountId,
+            transactionIds: createdTransactionIds,
+            payeeExtractionTransactionIds,
+          });
 
           if (mergedIntoPlannedCount > 0) {
             logger.info(
@@ -492,7 +499,7 @@ async function createMonobankTransaction({
   accountId: string;
   userId: number;
   matchPlanned: boolean;
-}): Promise<{ createdId?: string; mergedIntoPlanned: boolean }> {
+}): Promise<{ createdId?: string; mergedId?: string; mergedIntoPlanned: boolean }> {
   // Check if transaction already exists (duplicate prevention)
   const isTransactionExists = await findOneTransaction({
     planned: 'exclude',
@@ -587,7 +594,7 @@ async function createMonobankTransaction({
 
   if (createResult.mergedIntoPlanned) {
     logger.info(`Merged Monobank transaction ${data.id} into planned transaction ${createdTx.id}`);
-    return { mergedIntoPlanned: true };
+    return { mergedId: createdTx.id, mergedIntoPlanned: true };
   }
 
   logger.info(`Created Monobank transaction: ${data.id}, amount: ${data.amount}`);

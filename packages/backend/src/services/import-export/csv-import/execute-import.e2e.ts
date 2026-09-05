@@ -15,9 +15,10 @@ import {
   TransactionTypeOptionValue,
 } from '@bt/shared/types';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import Transactions from '@models/transactions.model';
+import * as payeeExtraction from '@services/payees/ai-extraction/schedule';
 import * as helpers from '@tests/helpers';
 import { expectCsvImportCompleted, waitForCsvImportCompletion } from '@tests/helpers/import-export';
 import { asUser, signUpSecondUser } from '@tests/helpers/share';
@@ -166,6 +167,7 @@ describe('Execute Import endpoint (async)', () => {
 
   describe('successful import', () => {
     it('should import transactions with existing account', async () => {
+      const scheduleSpy = jest.spyOn(payeeExtraction, 'schedulePayeeExtraction');
       const account = await helpers.createAccount({ raw: true });
 
       const { progress } = await runImport({
@@ -182,6 +184,10 @@ describe('Execute Import endpoint (async)', () => {
       expect(summary.categoriesCreated).toBe(0);
       expect(summary.errors).toHaveLength(0);
       expect(summary.newTransactionIds).toHaveLength(3);
+      expect(scheduleSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ transactionIds: expect.arrayContaining(summary.newTransactionIds) }),
+      );
+      scheduleSpy.mockRestore();
       expect(summary.batchId).toBeDefined();
 
       const transactions = await helpers.getTransactions({ raw: true });

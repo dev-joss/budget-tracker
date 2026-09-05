@@ -13,6 +13,7 @@
     <div v-else class="space-y-3">
       <!-- Render feature-specific components -->
       <template v-for="feature in featuresStatus" :key="feature.feature">
+        <PayeeExtractionFeature v-if="feature.feature === AI_FEATURE.payeeExtraction" :feature-status="feature" />
         <CategorizationFeature v-if="feature.feature === AI_FEATURE.categorization" :feature-status="feature" />
         <StatementParsingFeature
           v-else-if="feature.feature === AI_FEATURE.statementParsing"
@@ -28,6 +29,7 @@ import { useAiSettings } from '@/composable/data-queries/ai-settings';
 import { AI_FEATURE } from '@bt/shared/types';
 import { Loader2Icon } from '@lucide/vue';
 
+import PayeeExtractionFeature from './features/payee-extraction-feature.vue';
 import CategorizationFeature from './features/categorization-feature.vue';
 import StatementParsingFeature from './features/statement-parsing-feature.vue';
 

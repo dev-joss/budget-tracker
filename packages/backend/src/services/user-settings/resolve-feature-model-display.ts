@@ -11,6 +11,7 @@ import { getDefaultModelForFeature, getModelInfo } from '../ai/models-config';
 import { pickResolutionStep, type LadderEndpoint } from '../ai/resolution-ladder';
 
 interface FeatureModelDisplay {
+  isAvailable: boolean;
   modelId: string;
   /** Catalog name of `modelId`, or the free-text name for a custom model */
   modelName: string;
@@ -23,6 +24,7 @@ interface FeatureModelDisplay {
 /** A custom model has no catalog entry, so its label is the free-text name itself. */
 function describeModel({ modelId, usingUserKey }: { modelId: string; usingUserKey: boolean }): FeatureModelDisplay {
   return {
+    isAvailable: true,
     modelId,
     modelName: isCustomModelId({ modelId })
       ? getModelNameFromModelId({ modelId })
@@ -39,6 +41,7 @@ function describeEndpointModel({
   modelId: string;
 }): FeatureModelDisplay {
   return {
+    isAvailable: true,
     modelId,
     modelName: getModelNameFromModelId({ modelId }),
     usingUserKey: true,
@@ -82,17 +85,23 @@ export function resolveFeatureModelDisplay({
     // A flagged endpoint still names the feature: the run refuses to move to the server
     // key behind the user's back, so the endpoint is the only thing that could answer.
     case 'all-endpoints-down':
-      return describeEndpointModel({
-        endpoint: step.endpoint,
-        modelId: buildCustomModelId({ modelName: step.endpoint.defaultModel }),
-      });
+      return {
+        ...describeEndpointModel({
+          endpoint: step.endpoint,
+          modelId: buildCustomModelId({ modelName: step.endpoint.defaultModel }),
+        }),
+        isAvailable: false,
+      };
 
     // No credentials anywhere: nothing runs, so the screen keeps naming the user's own
     // pick (or the feature default) rather than inventing a different model.
     case 'unserved':
-      return describeModel({
-        modelId: config?.modelId ?? getDefaultModelForFeature({ feature }),
-        usingUserKey: false,
-      });
+      return {
+        ...describeModel({
+          modelId: config?.modelId ?? getDefaultModelForFeature({ feature }),
+          usingUserKey: false,
+        }),
+        isAvailable: false,
+      };
   }
 }

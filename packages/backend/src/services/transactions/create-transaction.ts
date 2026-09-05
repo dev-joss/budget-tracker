@@ -24,6 +24,7 @@ import { DOMAIN_EVENTS, eventBus } from '@services/common/event-bus';
 import { assertLoanPaymentAllowed } from '@services/loans/assert-loan-payment-allowed';
 import { applyPayeeCategorization } from '@services/payees/apply-categorization';
 import { applyPayeeDefaultTags } from '@services/payees/apply-default-tags';
+import { lockPayeeNamespace } from '@services/payees/payee-namespace';
 import { resolvePayeeForIncomingRow } from '@services/payees/resolve-payee-for-incoming-row';
 import {
   assertSharedWritePhase1Guards,
@@ -389,6 +390,10 @@ export const createTransaction = withTransaction(
         userId,
         accountId,
       });
+      // Resolve the namespace before planned-row locks or writes that can lock ledger rows.
+      if (!isTwoLegTransfer(transferNature)) {
+        await lockPayeeNamespace({ userId: accountOwnerUserId });
+      }
       assertSharedWritePhase1Guards({
         isOwner,
         involvesTransfer: isTwoLegTransfer(transferNature),
@@ -444,6 +449,7 @@ export const createTransaction = withTransaction(
 
       if (matchPlanned && transferNature === TRANSACTION_TRANSFER_NATURE.not_transfer && !payload.isPlanned) {
         const merged = await tryMergeIntoPlanned({
+          accountOwnerUserId,
           accountId,
           amount,
           transactionType: payload.transactionType,

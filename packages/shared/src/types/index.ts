@@ -27,6 +27,7 @@ export * from './money';
 export * from './transfer-nature';
 export * from './transaction-automations';
 export * from './work-expenses';
+export * from './payee-extraction';
 export * from './testing';
 export * from './type-testing';
 export { endpointsTypes };

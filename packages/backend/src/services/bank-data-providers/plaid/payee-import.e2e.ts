@@ -30,7 +30,17 @@ const configurePlaid = () => {
   process.env.PLAID_ENV = 'sandbox';
 };
 
-const plaidTransaction = ({ transactionId, date, name }: { transactionId: string; date: string; name: string }) => ({
+const plaidTransaction = ({
+  transactionId,
+  date,
+  name,
+  merchantName,
+}: {
+  transactionId: string;
+  date: string;
+  name: string;
+  merchantName: string | null;
+}) => ({
   account_id: ACCOUNT_ID,
   account_owner: null,
   amount: 12.34,
@@ -40,7 +50,7 @@ const plaidTransaction = ({ transactionId, date, name }: { transactionId: string
   datetime: null,
   iso_currency_code: 'AED',
   location: {},
-  merchant_name: 'Amazon',
+  merchant_name: merchantName,
   name,
   payment_channel: 'in store',
   payment_meta: {},
@@ -52,7 +62,10 @@ const plaidTransaction = ({ transactionId, date, name }: { transactionId: string
 });
 
 describe('Plaid payee import', () => {
-  it('creates and links a Payee from repeated merchant names when transaction names differ', async () => {
+  it.each([
+    { merchantName: 'Amazon', expectedLinked: true },
+    { merchantName: null, expectedLinked: false },
+  ])('respects dedicated merchant provenance ($merchantName)', async ({ merchantName, expectedLinked }) => {
     configurePlaid();
     global.mswMockServer.use(
       http.post('https://sandbox.plaid.com/item/public_token/exchange', () =>
@@ -76,7 +89,10 @@ describe('Plaid payee import', () => {
         }),
       ),
       http.post('https://sandbox.plaid.com/institutions/get_by_id', () =>
-        HttpResponse.json({ institution: { institution_id: 'institution-1', name: 'Test Bank' }, request_id: 'request-3' }),
+        HttpResponse.json({
+          institution: { institution_id: 'institution-1', name: 'Test Bank' },
+          request_id: 'request-3',
+        }),
       ),
       http.post('https://sandbox.plaid.com/accounts/get', () =>
         HttpResponse.json({ accounts: [account], item: { item_id: 'item-1' }, request_id: 'request-4' }),
@@ -85,14 +101,16 @@ describe('Plaid payee import', () => {
         HttpResponse.json({
           added: [
             plaidTransaction({
+              merchantName,
               transactionId: 'plaid-transaction-1',
               date: '2026-08-30',
               name: 'AMAZON MKTPL*ORDER123',
             }),
             plaidTransaction({
+              merchantName,
               transactionId: 'plaid-transaction-2',
               date: '2026-08-31',
-              name: 'Amazon.com*ORDER456',
+              name: merchantName ? 'Amazon.com*ORDER456' : 'AMAZON MKTPL*ORDER123',
             }),
           ],
           has_more: false,
@@ -116,14 +134,15 @@ describe('Plaid payee import', () => {
       raw: true,
     });
 
-    await until(
-      async () => Boolean(await Transactions.findOne({ where: { originalId: 'plaid-transaction-1' } })),
-      { timeout: 10_000, interval: 100 },
-    );
+    await until(async () => Boolean(await Transactions.findOne({ where: { originalId: 'plaid-transaction-1' } })), {
+      timeout: 10_000,
+      interval: 100,
+    });
     const imported = await Transactions.findAll({ where: { accountId: syncedAccounts[0]!.id } });
 
     expect(imported).toHaveLength(2);
-    expect(imported.every((transaction) => transaction.payeeId !== null)).toBe(true);
+    expect(imported.every((transaction) => transaction.payeeId !== null)).toBe(expectedLinked);
+    if (!expectedLinked) expect(imported.every((transaction) => transaction.payeeId === null)).toBe(true);
     expect(new Set(imported.map((transaction) => transaction.payeeId)).size).toBe(1);
   });
 });

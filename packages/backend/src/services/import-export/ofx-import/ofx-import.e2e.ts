@@ -1,6 +1,7 @@
 import { ImportSource, OFX_MAX_FILE_BYTES, PAYMENT_TYPES } from '@bt/shared/types';
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import * as payeeExtraction from '@services/payees/ai-extraction/schedule';
 import * as helpers from '@tests/helpers';
 import { asUser, provisionSecondUserWithBaseCurrency } from '@tests/helpers/share';
 
@@ -84,6 +85,7 @@ describe('OFX import HTTP endpoints', () => {
   });
 
   it('creates an account and imports payee, stable ID, direction, payment type, and requested balance', async () => {
+    const scheduleSpy = jest.spyOn(payeeExtraction, 'schedulePayeeExtraction');
     const accountName = `OFX created ${Date.now()}`;
     const upload = await helpers.uploadOfxFixture({ filename: 'bank-v1.ofx' });
     const progress = await runImport({
@@ -109,6 +111,12 @@ describe('OFX import HTTP endpoints', () => {
     expect(Number(account.currentBalance)).toBe(250);
 
     const transactions = await helpers.getTransactions({ accountIds: [account.id], raw: true });
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionIds: expect.arrayContaining(transactions.map((transaction) => transaction.id)),
+      }),
+    );
+    scheduleSpy.mockRestore();
     const purchase = transactions.find((transaction) => transaction.note === 'Sanitized purchase')!;
     expect(purchase).toMatchObject({
       amount: 12.34,

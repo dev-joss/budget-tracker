@@ -149,6 +149,45 @@
       "conflictDescription": "A Payee with the same normalized name as \"{name}\" already exists. Continuing will delete that Payee (transactions stay, lose link).",
       "forceConfirm": "Delete Payee and ignore"
     },
-    "loadingMore": "Loading more…"
+    "loadingMore": "Loading more…",
+    "extraction": {
+      "title": "Resolve payees",
+      "description": "Process unresolved imported transactions. Results with low confidence remain here for manual assignment.",
+      "enable": "Enable AI payee extraction",
+      "consent": "Allow AI to read imported descriptions for automatic extraction and history processing. Description matching must also be enabled.",
+      "saved": "AI payee extraction setting saved.",
+      "saveError": "Could not save AI payee extraction settings.",
+      "accounts": "Select accounts to process",
+      "allScope": "Process all unresolved transactions in these accounts",
+      "selectedScope": "Process selected rows",
+      "process": "Process unresolved transactions",
+      "destination": "Processing destination: {destination}. Model: {model}.",
+      "unavailable": "AI configuration is unavailable. Check AI settings before processing.",
+      "disabled": "Enable AI payee extraction and description matching in Payee Settings before processing.",
+      "aiSettings": "AI settings",
+      "payeeSettings": "Payee Settings",
+      "loadError": "Could not load unresolved transactions.",
+      "statusError": "Could not load extraction status. Retry before starting another run.",
+      "retry": "Retry",
+      "emptyTitle": "No unresolved transactions",
+      "emptyDescription": "All eligible imported transactions in the selected accounts have a payee.",
+      "chooseScope": "Select at least one account to view unresolved transactions.",
+      "edit": "Assign payee",
+      "previous": "Previous",
+      "next": "Next",
+      "total": "{count} unresolved transactions",
+      "started": "Payee extraction started.",
+      "startError": "Could not start payee extraction. Check the settings and retry.",
+      "noWork": "No eligible transactions remain in this scope.",
+      "counts": "Scanned: {scanned} · Linked: {linked} · Skipped: {skipped} · Low confidence: {lowConfidence} · Failed: {failed}",
+      "stopped": "Processing stopped. Review AI settings and retry unresolved rows.",
+      "statuses": {
+        "idle": "Ready",
+        "queued": "Queued",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Stopped"
+      }
+    }
   }
 }

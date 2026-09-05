@@ -15,6 +15,7 @@ import { ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import Payees from '@models/payees.model';
 import { addUserCurrencies } from '@services/currencies/add-user-currency';
+import { schedulePayeeExtraction } from '@services/payees/ai-extraction/schedule';
 import { normalizePayeeName } from '@services/payees/normalize-name';
 import { createPayee } from '@services/payees/payees.service';
 import { createTransaction } from '@services/transactions';
@@ -216,107 +217,113 @@ export async function executeYnabImport({
   };
 
   // Phase 6: transactions.
-  for (const tx of transactionsToWrite) {
-    try {
-      const accountId = accountIdByName.get(tx.accountName);
-      if (!accountId) throw new ValidationError({ message: `Unknown account "${tx.accountName}"` });
+  const extractionTransactionIds: string[] = [];
+  try {
+    for (const tx of transactionsToWrite) {
+      try {
+        const accountId = accountIdByName.get(tx.accountName);
+        if (!accountId) throw new ValidationError({ message: `Unknown account "${tx.accountName}"` });
 
-      const isExpense = tx.amount < 0;
-      const transactionType = isExpense ? TRANSACTION_TYPES.expense : TRANSACTION_TYPES.income;
-      const amount = Money.fromDecimal(Math.abs(tx.amount));
+        const isExpense = tx.amount < 0;
+        const transactionType = isExpense ? TRANSACTION_TYPES.expense : TRANSACTION_TYPES.income;
+        const amount = Money.fromDecimal(Math.abs(tx.amount));
 
-      const categoryId =
-        tx.categoryGroup && tx.categoryName
-          ? categoryByFullName.get(`${tx.categoryGroup}: ${tx.categoryName}`)
-          : undefined;
-      const payeeId = tx.payeeName ? payeeByName.get(tx.payeeName) : undefined;
-      const tagIds = tx.flag && tagByColor.has(tx.flag) ? [tagByColor.get(tx.flag)!] : undefined;
+        const categoryId =
+          tx.categoryGroup && tx.categoryName
+            ? categoryByFullName.get(`${tx.categoryGroup}: ${tx.categoryName}`)
+            : undefined;
+        const payeeId = tx.payeeName ? payeeByName.get(tx.payeeName) : undefined;
+        const tagIds = tx.flag && tagByColor.has(tx.flag) ? [tagByColor.get(tx.flag)!] : undefined;
 
-      await createTransaction({
-        userId,
-        accountId,
-        amount,
-        commissionRate: Money.zero(),
-        note: tx.memo,
-        time: parseIsoToDate(tx.date),
-        transactionType,
-        paymentType: PAYMENT_TYPES.creditCard,
-        accountType: ACCOUNT_TYPES.system,
-        transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
-        categoryId,
-        categoryIdIsExplicit: categoryId != null,
-        payeeId,
-        tagIds,
-        externalData: { importDetails },
-      });
-
-      summary.transactionsImported += 1;
-      await tick();
-    } catch (err) {
-      summary.errors.push({
-        rowIndex: tx.rowIndex,
-        error: err instanceof Error ? err.message : 'Unknown error',
-      });
-      await tick();
-    }
-  }
-
-  // Phase 7: transfers. Use createTransaction with `common_transfer` so the
-  // service writes both legs and links them via `transferId`.
-  for (const xfer of transfersToWrite) {
-    try {
-      const sourceAccountId = accountIdByName.get(xfer.sourceAccountName);
-      const destinationAccountId = accountIdByName.get(xfer.destinationAccountName);
-      if (!sourceAccountId || !destinationAccountId) {
-        throw new ValidationError({
-          message: `Transfer references unknown account ("${xfer.sourceAccountName}" or "${xfer.destinationAccountName}").`,
+        const createResult = await createTransaction({
+          userId,
+          accountId,
+          amount,
+          commissionRate: Money.zero(),
+          note: tx.memo,
+          time: parseIsoToDate(tx.date),
+          transactionType,
+          paymentType: PAYMENT_TYPES.creditCard,
+          accountType: ACCOUNT_TYPES.system,
+          transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
+          categoryId,
+          categoryIdIsExplicit: categoryId != null,
+          payeeId,
+          tagIds,
+          externalData: { importDetails },
         });
+        if (createResult[0]) extractionTransactionIds.push(createResult[0].id);
+
+        summary.transactionsImported += 1;
+        await tick();
+      } catch (err) {
+        summary.errors.push({
+          rowIndex: tx.rowIndex,
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
+        await tick();
       }
-
-      const tagIds = xfer.flag && tagByColor.has(xfer.flag) ? [tagByColor.get(xfer.flag)!] : undefined;
-      const amount = Money.fromDecimal(xfer.amount);
-
-      // YNAB CSV doesn't surface a separate destination amount even when the
-      // two accounts have different currencies — they ALWAYS round-trip the
-      // amount cell for both legs. When currencies differ we keep the same
-      // numeric amount on both sides; users can fix individual cross-currency
-      // transfers post-import.
-      const destinationAmount = amount;
-
-      await createTransaction({
-        userId,
-        accountId: sourceAccountId,
-        amount,
-        commissionRate: Money.zero(),
-        note: xfer.memo,
-        time: parseIsoToDate(xfer.date),
-        transactionType: TRANSACTION_TYPES.expense,
-        paymentType: PAYMENT_TYPES.creditCard,
-        accountType: ACCOUNT_TYPES.system,
-        transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
-        destinationAccountId,
-        destinationAmount,
-        tagIds,
-        externalData: { importDetails },
-      });
-
-      summary.transfersImported += 1;
-      await tick();
-    } catch (err) {
-      summary.errors.push({
-        rowIndex: xfer.rowIndices[0],
-        error: err instanceof Error ? err.message : 'Unknown error',
-      });
-      await tick();
     }
+
+    // Phase 7: transfers. Use createTransaction with `common_transfer` so the
+    // service writes both legs and links them via `transferId`.
+    for (const xfer of transfersToWrite) {
+      try {
+        const sourceAccountId = accountIdByName.get(xfer.sourceAccountName);
+        const destinationAccountId = accountIdByName.get(xfer.destinationAccountName);
+        if (!sourceAccountId || !destinationAccountId) {
+          throw new ValidationError({
+            message: `Transfer references unknown account ("${xfer.sourceAccountName}" or "${xfer.destinationAccountName}").`,
+          });
+        }
+
+        const tagIds = xfer.flag && tagByColor.has(xfer.flag) ? [tagByColor.get(xfer.flag)!] : undefined;
+        const amount = Money.fromDecimal(xfer.amount);
+
+        // YNAB CSV doesn't surface a separate destination amount even when the
+        // two accounts have different currencies — they ALWAYS round-trip the
+        // amount cell for both legs. When currencies differ we keep the same
+        // numeric amount on both sides; users can fix individual cross-currency
+        // transfers post-import.
+        const destinationAmount = amount;
+
+        await createTransaction({
+          userId,
+          accountId: sourceAccountId,
+          amount,
+          commissionRate: Money.zero(),
+          note: xfer.memo,
+          time: parseIsoToDate(xfer.date),
+          transactionType: TRANSACTION_TYPES.expense,
+          paymentType: PAYMENT_TYPES.creditCard,
+          accountType: ACCOUNT_TYPES.system,
+          transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+          destinationAccountId,
+          destinationAmount,
+          tagIds,
+          externalData: { importDetails },
+        });
+
+        summary.transfersImported += 1;
+        await tick();
+      } catch (err) {
+        summary.errors.push({
+          rowIndex: xfer.rowIndices[0],
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
+        await tick();
+      }
+    }
+
+    // Detected splits are reported informationally — every child row was already
+    // imported via the transactions loop above. Used by the wizard's results
+    // screen to nudge users toward manual cleanup if their YNAB had splits.
+    summary.splitsDetected = parsed.detectedSplitCount;
+
+    return summary;
+  } finally {
+    await schedulePayeeExtraction({ userId, transactionIds: extractionTransactionIds });
   }
-
-  // Detected splits are reported informationally — every child row was already
-  // imported via the transactions loop above. Used by the wizard's results
-  // screen to nudge users toward manual cleanup if their YNAB had splits.
-  summary.splitsDetected = parsed.detectedSplitCount;
-
-  return summary;
 }
 
 function parseIsoToDate(iso: string): Date {

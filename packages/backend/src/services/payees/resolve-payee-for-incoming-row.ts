@@ -16,7 +16,6 @@ export const resolvePayeeForIncomingRow = async ({
   rawMerchantName,
   note,
   failureLogMessage,
-  logContext,
 }: {
   ownerUserId: number;
   rawMerchantName?: string | null;
@@ -24,7 +23,7 @@ export const resolvePayeeForIncomingRow = async ({
   failureLogMessage: string;
   logContext?: Record<string, unknown>;
 }): Promise<string | null> => {
-  let effectiveRawMerchant = rawMerchantName;
+  let effectiveRawMerchant = rawMerchantName?.trim();
 
   if (!effectiveRawMerchant && note) {
     const settings = await getUserSettings({ userId: ownerUserId });
@@ -40,14 +39,8 @@ export const resolvePayeeForIncomingRow = async ({
       resolvePayeeForRawMerchant({ userId: ownerUserId, rawMerchantName: effectiveRawMerchant }),
     );
     return extraction.payeeId;
-  } catch (error) {
-    logger.error(
-      {
-        message: failureLogMessage,
-        error: error as Error,
-      },
-      { ...logContext, rawMerchantName: effectiveRawMerchant },
-    );
+  } catch {
+    logger.warn(failureLogMessage, { ownerUserId, code: 'PAYEE_RESOLUTION_FAILED' });
     return null;
   }
 };

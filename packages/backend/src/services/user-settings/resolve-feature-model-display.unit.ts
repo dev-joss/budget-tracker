@@ -62,6 +62,16 @@ describe('resolveFeatureModelDisplay', () => {
     }
   });
 
+  it('allows retry of an explicitly configured endpoint flagged invalid', () => {
+    const display = resolveFeatureModelDisplay({
+      feature: FEATURE,
+      config: { feature: FEATURE, modelId: 'custom/llama3.2', customEndpointId: ENDPOINT.id },
+      aiSettings: buildAiSettings({ endpoints: [{ ...ENDPOINT, status: 'invalid' }] }),
+    });
+    expect(display.isAvailable).toBe(true);
+    expect(display.customEndpointId).toBe(ENDPOINT.id);
+  });
+
   it('names the configured endpoint model with its endpoint', () => {
     const config: AIFeatureConfig = { feature: FEATURE, modelId: 'custom/llama3.2', customEndpointId: ENDPOINT.id };
 
@@ -72,6 +82,7 @@ describe('resolveFeatureModelDisplay', () => {
     });
 
     expect(display).toEqual({
+      isAvailable: true,
       modelId: 'custom/llama3.2',
       modelName: 'llama3.2',
       usingUserKey: true,
@@ -106,6 +117,7 @@ describe('resolveFeatureModelDisplay', () => {
     });
 
     expect(display).toEqual({
+      isAvailable: true,
       modelId: 'custom/llama3.2',
       modelName: 'llama3.2',
       usingUserKey: true,
@@ -137,6 +149,7 @@ describe('resolveFeatureModelDisplay', () => {
     });
 
     expect(display).toMatchObject({
+      isAvailable: false,
       modelId: 'custom/llama3.2',
       modelName: 'llama3.2',
       usingUserKey: true,
@@ -152,6 +165,7 @@ describe('resolveFeatureModelDisplay', () => {
 
     expect(display.modelId).toBe('anthropic/claude-haiku-4-5');
     expect(display.usingUserKey).toBe(false);
+    expect(display.isAvailable).toBe(false);
   });
 
   it('falls back to the feature default when there is no config and no credentials', () => {
@@ -159,5 +173,6 @@ describe('resolveFeatureModelDisplay', () => {
 
     expect(display.modelId).toBe(DEFAULT_MODEL_ID);
     expect(display.usingUserKey).toBe(false);
+    expect(display.isAvailable).toBe(false);
   });
 });

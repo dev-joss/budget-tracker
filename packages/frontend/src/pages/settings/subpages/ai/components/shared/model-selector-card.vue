@@ -250,6 +250,7 @@ const props = defineProps<{
 const featureDisplayInfo = computed(() => getAIFeatureDisplayInfo({ feature: props.featureStatus.feature }));
 
 const FEATURE_ICONS = {
+  [AI_FEATURE.payeeExtraction]: TagIcon,
   [AI_FEATURE.categorization]: TagIcon,
   [AI_FEATURE.statementParsing]: FileTextIcon,
   [AI_FEATURE.investmentTransactionsParsing]: LineChartIcon,

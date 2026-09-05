@@ -1,5 +1,6 @@
 import { logger } from '@js/utils/logger';
 import { DOMAIN_EVENTS, TransactionsSyncedPayload, eventBus } from '@services/common/event-bus';
+import { schedulePayeeExtraction } from '@services/payees/ai-extraction/schedule';
 import { getUserSettings } from '@services/user-settings/get-user-settings';
 
 import { runNoteFuzzyBackfill } from './note-fuzzy-backfill';
@@ -70,15 +71,13 @@ async function flushPendingNoteBackfillBatch(userId: number): Promise<void> {
     }
 
     const result = await runNoteFuzzyBackfill({ userId, transactionIds: Array.from(bucket) });
+    await schedulePayeeExtraction({ userId, transactionIds: Array.from(bucket) });
     logger.info(`${LOG_PREFIX} batch complete`, {
       userId,
       scanned: result.scanned,
       linked: result.linked,
     });
-  } catch (error) {
-    logger.error({
-      message: `${LOG_PREFIX} batch failed`,
-      error: error as Error,
-    });
+  } catch {
+    logger.error({ message: `${LOG_PREFIX} batch failed` });
   }
 }

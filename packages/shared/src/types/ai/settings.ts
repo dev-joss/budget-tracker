@@ -104,6 +104,8 @@ export interface AICustomEndpointInfo {
  * differ from the user's stored pick.
  */
 export interface AIFeatureStatus {
+  /** Whether the current resolution has credentials and can attempt a request. */
+  isAvailable?: boolean;
   feature: AI_FEATURE;
   /** Whether user has custom config (false = using default) */
   isConfigured: boolean;

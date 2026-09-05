@@ -1,11 +1,13 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import * as payeeExtraction from '@services/payees/ai-extraction/schedule';
 import * as helpers from '@tests/helpers';
 import { expectYnabImportCompleted, waitForYnabImportCompletion } from '@tests/helpers/import-export';
 import { asUser, signUpSecondUser } from '@tests/helpers/share';
 
 describe('Execute YNAB import endpoint', () => {
   it('imports a multi-currency fixture end to end and persists every entity', async () => {
+    const scheduleSpy = jest.spyOn(payeeExtraction, 'schedulePayeeExtraction');
     const fileContent = helpers.loadYnabFixture('register-basic.csv');
 
     // Parse once just to capture the YNAB account names — they are the keys
@@ -62,6 +64,10 @@ describe('Execute YNAB import endpoint', () => {
     const transactionsAfter = await helpers.getTransactions({ raw: true });
     const salary = transactionsAfter.find((t) => t.note === 'Salary');
     expect(salary).toBeDefined();
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ transactionIds: expect.arrayContaining([salary!.id]) }),
+    );
+    scheduleSpy.mockRestore();
     expect(salary!.transactionType).toBe('income');
     expect(Number(salary!.amount)).toBe(3200);
 

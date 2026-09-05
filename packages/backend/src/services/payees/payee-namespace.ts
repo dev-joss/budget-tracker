@@ -1,7 +1,9 @@
 import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
+import { connection, namespace } from '@models/connection';
 import PayeeAliases from '@models/payee-aliases.model';
 import Payees from '@models/payees.model';
+import { QueryTypes } from 'sequelize';
 
 import { insertOrAdopt } from '../common/run-in-savepoint';
 import { normalizePayeeName } from './normalize-name';
@@ -114,5 +116,18 @@ export async function ensureAliasExists({
   await insertOrAdopt({
     insert: () => PayeeAliases.create({ payeeId, rawName, normalizedName }),
     adopt: () => PayeeAliases.findOne({ where: { payeeId, normalizedName } }),
+  });
+}
+
+/** Acquire before namespace reads and row locks; the enclosing transaction owns the lock. */
+export async function lockPayeeNamespace({ userId }: { userId: number }): Promise<void> {
+  const transaction = namespace.get('transaction');
+  if (!transaction || transaction.finished) {
+    throw new Error('Payee namespace lock requires an active transaction');
+  }
+  await connection.sequelize.query('SELECT pg_advisory_xact_lock(1734436197, :userId)', {
+    replacements: { userId },
+    type: QueryTypes.SELECT,
+    transaction,
   });
 }

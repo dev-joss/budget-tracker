@@ -28,6 +28,7 @@ export * from './transaction-automations';
 export * from './transaction-templates';
 export * from './subscriptions';
 export * from './payees';
+export * from './payee-extraction';
 export * from './brand-logos';
 export * from './vehicles';
 export * from './loans';

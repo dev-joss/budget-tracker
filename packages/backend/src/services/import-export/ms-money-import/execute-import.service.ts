@@ -23,6 +23,7 @@ import { createPayeesIfNeeded } from '@services/import-export/core/resolve/creat
 import { createNamedTagsIfNeeded } from '@services/import-export/core/resolve/create-tags-if-needed';
 import { excludeSkippedAccounts } from '@services/import-export/core/resolve/exclude-skipped-accounts';
 import { signedRowContribution } from '@services/import-export/core/signed-row-contribution';
+import { schedulePayeeExtraction } from '@services/payees/ai-extraction/schedule';
 import { createTransaction } from '@services/transactions';
 import { selectAccountsWithPlannedRows } from '@services/transactions/planned-matching';
 import { v4 as uuidv4 } from 'uuid';
@@ -308,256 +309,262 @@ export async function executeMsMoneyImport({
 
   // Phase 5: transactions (ordinary rows + unpaired transfer legs). Rows the
   // user confirmed as duplicates are counted and skipped without a tick.
-  for (const tx of importableTransactions) {
-    if (skipSet.has(tx.rowIndex)) {
-      summary.duplicatesSkipped += 1;
-      continue;
-    }
-    try {
-      const accountId = accountIdByName.get(tx.accountName);
-      if (!accountId) throw new ValidationError({ message: `Unknown account "${tx.accountName}"` });
-
-      const transactionType = tx.type;
-      const amount = Money.fromDecimal(Math.abs(tx.amount));
-
-      // Out-of-wallet legs carry no real category and model money leaving/entering
-      // the tracked set of accounts, so they import as `transfer_out_wallet` with
-      // no destination account and no category. Ordinary rows resolve their
-      // category through the mapping; an unmapped name yields undefined.
-      const categoryId = !tx.outOfWallet && tx.categoryName ? categoryIdByFullName.get(tx.categoryName) : undefined;
-      const transferNature = tx.outOfWallet
-        ? TRANSACTION_TRANSFER_NATURE.transfer_out_wallet
-        : TRANSACTION_TRANSFER_NATURE.not_transfer;
-
-      // Link the Phase 4 Payee explicitly (caller id wins over createTransaction's
-      // extraction); `rawMerchantName` keeps the raw name. An empty payee resolves
-      // to undefined → imports without a Payee.
-      const payeeId = tx.payeeName ? payeeNameToId.get(tx.payeeName) : undefined;
-
-      // Money's check / reference number is worth keeping, but only where there
-      // is no memo to overwrite.
-      const baseNote = tx.note.trim() === '' && tx.referenceNumber ? tx.referenceNumber : tx.note;
-      // A voided row is written at zero, so the amount Money kept on it would
-      // otherwise be lost entirely.
-      const note =
-        tx.isVoid && tx.voidedAmount
-          ? `${baseNote} (voided: ${Math.abs(tx.voidedAmount).toFixed(2)})`.trim()
-          : baseNote;
-
-      const createResult = await createTransaction({
-        userId,
-        accountId,
-        amount,
-        commissionRate: Money.zero(),
-        note,
-        time: new Date(tx.date),
-        transactionType,
-        // Money has no payment-type column, so every row lands on the neutral
-        // default rather than a guess from the memo.
-        paymentType: PAYMENT_TYPES.bankTransfer,
-        accountType: ACCOUNT_TYPES.system,
-        transferNature,
-        categoryId,
-        tagIds: tx.isVoid && voidTagId ? [voidTagId] : undefined,
-        payeeId,
-        rawMerchantName: tx.payeeName || null,
-        externalData: { importDetails },
-        // A category from the mapped Money category is authoritative and beats a
-        // linked Payee's enforce/hint default. Inert when the row has no mapped
-        // category, so Payee categorization still runs then.
-        categoryIdIsExplicit: categoryId != null,
-        matchPlanned: plannedMatchAccountIds.has(accountId),
-      });
-
-      // Fold this committed row into the per-account balance tally IMMEDIATELY
-      // after the commit: the balance hook has already moved `currentBalance`, so
-      // a row missing from the tally would make the reconcile adjustment too
-      // large with no desync error. Signed the way the hook applied it (income
-      // adds, expense subtracts).
-      reconciler.recordRow({
-        accountId,
-        rowIso: tx.date,
-        ...signedRowContribution({
-          isIncome: transactionType === TRANSACTION_TYPES.income,
-          amount,
-        }),
-      });
-
-      // A merged row is an existing planned transaction, not a newly imported one.
-      if (createResult.mergedIntoPlanned) {
-        summary.merged += 1;
-      } else if (tx.isVoid) {
-        summary.voidedImported += 1;
-      } else if (tx.outOfWallet) {
-        summary.outOfWalletImported += 1;
-      } else {
-        summary.transactionsImported += 1;
-      }
-
-      failureTally = recordImportSuccess({ tally: failureTally });
-    } catch (err) {
-      const decision = recordImportFailure({ tally: failureTally, rowIndices: [tx.rowIndex] });
-      failureTally = decision.tally;
-
-      if (decision.shouldLog) {
-        logger.error({
-          message: `[MS Money import] Failed to import transaction (row ${tx.rowIndex}, account "${tx.accountName}")`,
-          error: err as Error,
-        });
-      }
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      for (const rowIndex of decision.retainedRowIndices) {
-        summary.errors.push({ rowIndex, error: message });
-      }
-
-      // Rows failing back to back point at the import (dead DB connection),
-      // not the data. Fail the job so the user retries rather than handing them
-      // a "completed" import whose rows mostly never landed.
-      if (decision.shouldAbort) {
-        throw new UnexpectedError({ message: buildSystemicFailureMessage({ lastError: err }) });
-      }
-    }
-    // Tick once per attempted row, regardless of success or failure, and OUTSIDE
-    // the correctness try/catch: a progress/SSE error must not be recorded as a
-    // fake per-row import error against a row that did commit, nor abort the run.
-    await tick();
-  }
-
-  // Phase 6: transfers. Money links both legs explicitly and records the exact
-  // amount on each side, so a cross-currency transfer carries a distinct source
-  // amount and destination amount (e.g. 100 USD leaving, 92 EUR arriving). Both
-  // values are passed straight through: `createTransaction` with
-  // `common_transfer` writes the source (expense) and destination (income) legs
-  // and links them via `transferId`.
-  for (const xfer of transfersToWrite) {
-    try {
-      const sourceAccountId = accountIdByName.get(xfer.sourceAccountName);
-      const destinationAccountId = accountIdByName.get(xfer.destinationAccountName);
-      if (!sourceAccountId || !destinationAccountId) {
-        throw new ValidationError({
-          message: `Transfer references unknown account ("${xfer.sourceAccountName}" or "${xfer.destinationAccountName}").`,
-        });
-      }
-
-      // Money records one payee for the pair, so it lands on the source leg.
-      const payeeId = xfer.payeeName ? payeeNameToId.get(xfer.payeeName) : undefined;
-
-      const [, destinationLeg] = await createTransaction({
-        userId,
-        accountId: sourceAccountId,
-        amount: Money.fromDecimal(xfer.sourceAmount),
-        commissionRate: Money.zero(),
-        note: xfer.note,
-        time: new Date(xfer.date),
-        transactionType: TRANSACTION_TYPES.expense,
-        paymentType: PAYMENT_TYPES.bankTransfer,
-        accountType: ACCOUNT_TYPES.system,
-        transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
-        destinationAccountId,
-        destinationAmount: Money.fromDecimal(xfer.destinationAmount),
-        payeeId,
-        rawMerchantName: xfer.payeeName || null,
-        externalData: { importDetails },
-      });
-
-      // `createTransaction` types the destination leg optional for non-transfer
-      // calls; a `common_transfer` always writes and returns both legs. A missing
-      // destination leg means the destination account's balance moved without a
-      // matching tally entry — surface it instead of silently desyncing.
-      if (!destinationLeg) {
-        throw new ValidationError({
-          message: `Transfer destination leg missing for "${xfer.sourceAccountName}" → "${xfer.destinationAccountName}"; account balances may be incorrect.`,
-        });
-      }
-
-      // Each transfer leg lands on its own account, so each is recorded against
-      // that account's own boundary: source loses `sourceAmount` (expense),
-      // destination gains `destinationAmount` (income).
-      reconciler.recordRow({
-        accountId: sourceAccountId,
-        rowIso: xfer.date,
-        ...signedRowContribution({
-          isIncome: false,
-          amount: Money.fromDecimal(xfer.sourceAmount),
-        }),
-      });
-      reconciler.recordRow({
-        accountId: destinationAccountId,
-        rowIso: xfer.date,
-        ...signedRowContribution({
-          isIncome: true,
-          amount: Money.fromDecimal(xfer.destinationAmount),
-        }),
-      });
-
-      summary.transfersImported += 1;
-
-      failureTally = recordImportSuccess({ tally: failureTally });
-    } catch (err) {
-      // One error per leg so a user scanning by row index can find both halves of
-      // the failed transfer, not just the expense leg.
-      const decision = recordImportFailure({ tally: failureTally, rowIndices: xfer.rowIndices });
-      failureTally = decision.tally;
-
-      if (decision.shouldLog) {
-        logger.error({
-          message: `[MS Money import] Failed to import transfer ("${xfer.sourceAccountName}" → "${xfer.destinationAccountName}", rows ${xfer.rowIndices.join(', ')})`,
-          error: err as Error,
-        });
-      }
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      for (const rowIndex of decision.retainedRowIndices) {
-        summary.errors.push({ rowIndex, error: message });
-      }
-
-      if (decision.shouldAbort) {
-        throw new UnexpectedError({ message: buildSystemicFailureMessage({ lastError: err }) });
-      }
-    }
-    // Tick once per attempted transfer, regardless of success or failure, and
-    // OUTSIDE the correctness try/catch: a progress/SSE error must not be
-    // recorded as a fake import error nor abort the run.
-    await tick();
-  }
-
-  // Close out the capped failure reporting before the account-level balance
-  // errors are appended: one entry standing in for every error the summary did
-  // not retain, and one log line for the failures that were not logged.
-  const suppressedFailuresEntry = buildSuppressedFailuresEntry({ tally: failureTally });
-  if (suppressedFailuresEntry) summary.errors.push(suppressedFailuresEntry);
-  if (failureTally.unloggedFailures > 0) {
-    logger.error({
-      message: `[MS Money import] ${failureTally.unloggedFailures} further row failures were not logged individually`,
-    });
-  }
-
-  // Phase 7: balance targeting. Must run AFTER all rows are written so the
-  // back-adjustment is computed against the current balance the imported
-  // transactions produced. `finalize` owns the whole pass: created accounts
-  // (partitioned alongside the captured set in Phase 2) get their entered
-  // `currentBalance` (when non-null) forced as the final value (a null target
-  // leaves the balance at Σ(imported rows)) plus a summary entry read back
-  // afterwards; linked accounts are back-adjusted against their pre-import
-  // snapshot — preserved (recalc OFF) or moved by the rows dated on/after the
-  // boundary (recalc ON). A failed balance write surfaces as
-  // `account-balance-desync`: the rows are committed, so the user must see and
-  // fix the balance manually.
-  const { accountBalanceChanges, errors: balanceErrors } = await reconciler.finalize({
-    recalculateBalance,
-    createdAccounts,
-    logLabel: 'MS Money import',
-  });
-  summary.accountBalanceChanges.push(...accountBalanceChanges);
-  summary.errors.push(...balanceErrors);
-
-  // The cached parse result has served its purpose. Dropping it early frees the
-  // disk entry ahead of the sweeper; a failure only delays that, so it must not
-  // fail an import whose rows are already committed.
+  const extractionTransactionIds: string[] = [];
   try {
-    await deleteMsMoneyUpload({ userId, uploadId });
-  } catch (err) {
-    logger.error({ message: '[MS Money import] Failed to delete cached upload', error: err as Error });
-  }
+    for (const tx of importableTransactions) {
+      if (skipSet.has(tx.rowIndex)) {
+        summary.duplicatesSkipped += 1;
+        continue;
+      }
+      try {
+        const accountId = accountIdByName.get(tx.accountName);
+        if (!accountId) throw new ValidationError({ message: `Unknown account "${tx.accountName}"` });
 
-  return summary;
+        const transactionType = tx.type;
+        const amount = Money.fromDecimal(Math.abs(tx.amount));
+
+        // Out-of-wallet legs carry no real category and model money leaving/entering
+        // the tracked set of accounts, so they import as `transfer_out_wallet` with
+        // no destination account and no category. Ordinary rows resolve their
+        // category through the mapping; an unmapped name yields undefined.
+        const categoryId = !tx.outOfWallet && tx.categoryName ? categoryIdByFullName.get(tx.categoryName) : undefined;
+        const transferNature = tx.outOfWallet
+          ? TRANSACTION_TRANSFER_NATURE.transfer_out_wallet
+          : TRANSACTION_TRANSFER_NATURE.not_transfer;
+
+        // Link the Phase 4 Payee explicitly (caller id wins over createTransaction's
+        // extraction); `rawMerchantName` keeps the raw name. An empty payee resolves
+        // to undefined → imports without a Payee.
+        const payeeId = tx.payeeName ? payeeNameToId.get(tx.payeeName) : undefined;
+
+        // Money's check / reference number is worth keeping, but only where there
+        // is no memo to overwrite.
+        const baseNote = tx.note.trim() === '' && tx.referenceNumber ? tx.referenceNumber : tx.note;
+        // A voided row is written at zero, so the amount Money kept on it would
+        // otherwise be lost entirely.
+        const note =
+          tx.isVoid && tx.voidedAmount
+            ? `${baseNote} (voided: ${Math.abs(tx.voidedAmount).toFixed(2)})`.trim()
+            : baseNote;
+
+        const createResult = await createTransaction({
+          userId,
+          accountId,
+          amount,
+          commissionRate: Money.zero(),
+          note,
+          time: new Date(tx.date),
+          transactionType,
+          // Money has no payment-type column, so every row lands on the neutral
+          // default rather than a guess from the memo.
+          paymentType: PAYMENT_TYPES.bankTransfer,
+          accountType: ACCOUNT_TYPES.system,
+          transferNature,
+          categoryId,
+          tagIds: tx.isVoid && voidTagId ? [voidTagId] : undefined,
+          payeeId,
+          rawMerchantName: tx.payeeName || null,
+          externalData: { importDetails },
+          // A category from the mapped Money category is authoritative and beats a
+          // linked Payee's enforce/hint default. Inert when the row has no mapped
+          // category, so Payee categorization still runs then.
+          categoryIdIsExplicit: categoryId != null,
+          matchPlanned: plannedMatchAccountIds.has(accountId),
+        });
+        if (createResult[0]) extractionTransactionIds.push(createResult[0].id);
+
+        // Fold this committed row into the per-account balance tally IMMEDIATELY
+        // after the commit: the balance hook has already moved `currentBalance`, so
+        // a row missing from the tally would make the reconcile adjustment too
+        // large with no desync error. Signed the way the hook applied it (income
+        // adds, expense subtracts).
+        reconciler.recordRow({
+          accountId,
+          rowIso: tx.date,
+          ...signedRowContribution({
+            isIncome: transactionType === TRANSACTION_TYPES.income,
+            amount,
+          }),
+        });
+
+        // A merged row is an existing planned transaction, not a newly imported one.
+        if (createResult.mergedIntoPlanned) {
+          summary.merged += 1;
+        } else if (tx.isVoid) {
+          summary.voidedImported += 1;
+        } else if (tx.outOfWallet) {
+          summary.outOfWalletImported += 1;
+        } else {
+          summary.transactionsImported += 1;
+        }
+
+        failureTally = recordImportSuccess({ tally: failureTally });
+      } catch (err) {
+        const decision = recordImportFailure({ tally: failureTally, rowIndices: [tx.rowIndex] });
+        failureTally = decision.tally;
+
+        if (decision.shouldLog) {
+          logger.error({
+            message: `[MS Money import] Failed to import transaction (row ${tx.rowIndex}, account "${tx.accountName}")`,
+            error: err as Error,
+          });
+        }
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        for (const rowIndex of decision.retainedRowIndices) {
+          summary.errors.push({ rowIndex, error: message });
+        }
+
+        // Rows failing back to back point at the import (dead DB connection),
+        // not the data. Fail the job so the user retries rather than handing them
+        // a "completed" import whose rows mostly never landed.
+        if (decision.shouldAbort) {
+          throw new UnexpectedError({ message: buildSystemicFailureMessage({ lastError: err }) });
+        }
+      }
+      // Tick once per attempted row, regardless of success or failure, and OUTSIDE
+      // the correctness try/catch: a progress/SSE error must not be recorded as a
+      // fake per-row import error against a row that did commit, nor abort the run.
+      await tick();
+    }
+
+    // Phase 6: transfers. Money links both legs explicitly and records the exact
+    // amount on each side, so a cross-currency transfer carries a distinct source
+    // amount and destination amount (e.g. 100 USD leaving, 92 EUR arriving). Both
+    // values are passed straight through: `createTransaction` with
+    // `common_transfer` writes the source (expense) and destination (income) legs
+    // and links them via `transferId`.
+    for (const xfer of transfersToWrite) {
+      try {
+        const sourceAccountId = accountIdByName.get(xfer.sourceAccountName);
+        const destinationAccountId = accountIdByName.get(xfer.destinationAccountName);
+        if (!sourceAccountId || !destinationAccountId) {
+          throw new ValidationError({
+            message: `Transfer references unknown account ("${xfer.sourceAccountName}" or "${xfer.destinationAccountName}").`,
+          });
+        }
+
+        // Money records one payee for the pair, so it lands on the source leg.
+        const payeeId = xfer.payeeName ? payeeNameToId.get(xfer.payeeName) : undefined;
+
+        const [, destinationLeg] = await createTransaction({
+          userId,
+          accountId: sourceAccountId,
+          amount: Money.fromDecimal(xfer.sourceAmount),
+          commissionRate: Money.zero(),
+          note: xfer.note,
+          time: new Date(xfer.date),
+          transactionType: TRANSACTION_TYPES.expense,
+          paymentType: PAYMENT_TYPES.bankTransfer,
+          accountType: ACCOUNT_TYPES.system,
+          transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+          destinationAccountId,
+          destinationAmount: Money.fromDecimal(xfer.destinationAmount),
+          payeeId,
+          rawMerchantName: xfer.payeeName || null,
+          externalData: { importDetails },
+        });
+
+        // `createTransaction` types the destination leg optional for non-transfer
+        // calls; a `common_transfer` always writes and returns both legs. A missing
+        // destination leg means the destination account's balance moved without a
+        // matching tally entry — surface it instead of silently desyncing.
+        if (!destinationLeg) {
+          throw new ValidationError({
+            message: `Transfer destination leg missing for "${xfer.sourceAccountName}" → "${xfer.destinationAccountName}"; account balances may be incorrect.`,
+          });
+        }
+
+        // Each transfer leg lands on its own account, so each is recorded against
+        // that account's own boundary: source loses `sourceAmount` (expense),
+        // destination gains `destinationAmount` (income).
+        reconciler.recordRow({
+          accountId: sourceAccountId,
+          rowIso: xfer.date,
+          ...signedRowContribution({
+            isIncome: false,
+            amount: Money.fromDecimal(xfer.sourceAmount),
+          }),
+        });
+        reconciler.recordRow({
+          accountId: destinationAccountId,
+          rowIso: xfer.date,
+          ...signedRowContribution({
+            isIncome: true,
+            amount: Money.fromDecimal(xfer.destinationAmount),
+          }),
+        });
+
+        summary.transfersImported += 1;
+
+        failureTally = recordImportSuccess({ tally: failureTally });
+      } catch (err) {
+        // One error per leg so a user scanning by row index can find both halves of
+        // the failed transfer, not just the expense leg.
+        const decision = recordImportFailure({ tally: failureTally, rowIndices: xfer.rowIndices });
+        failureTally = decision.tally;
+
+        if (decision.shouldLog) {
+          logger.error({
+            message: `[MS Money import] Failed to import transfer ("${xfer.sourceAccountName}" → "${xfer.destinationAccountName}", rows ${xfer.rowIndices.join(', ')})`,
+            error: err as Error,
+          });
+        }
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        for (const rowIndex of decision.retainedRowIndices) {
+          summary.errors.push({ rowIndex, error: message });
+        }
+
+        if (decision.shouldAbort) {
+          throw new UnexpectedError({ message: buildSystemicFailureMessage({ lastError: err }) });
+        }
+      }
+      // Tick once per attempted transfer, regardless of success or failure, and
+      // OUTSIDE the correctness try/catch: a progress/SSE error must not be
+      // recorded as a fake import error nor abort the run.
+      await tick();
+    }
+
+    // Close out the capped failure reporting before the account-level balance
+    // errors are appended: one entry standing in for every error the summary did
+    // not retain, and one log line for the failures that were not logged.
+    const suppressedFailuresEntry = buildSuppressedFailuresEntry({ tally: failureTally });
+    if (suppressedFailuresEntry) summary.errors.push(suppressedFailuresEntry);
+    if (failureTally.unloggedFailures > 0) {
+      logger.error({
+        message: `[MS Money import] ${failureTally.unloggedFailures} further row failures were not logged individually`,
+      });
+    }
+
+    // Phase 7: balance targeting. Must run AFTER all rows are written so the
+    // back-adjustment is computed against the current balance the imported
+    // transactions produced. `finalize` owns the whole pass: created accounts
+    // (partitioned alongside the captured set in Phase 2) get their entered
+    // `currentBalance` (when non-null) forced as the final value (a null target
+    // leaves the balance at Σ(imported rows)) plus a summary entry read back
+    // afterwards; linked accounts are back-adjusted against their pre-import
+    // snapshot — preserved (recalc OFF) or moved by the rows dated on/after the
+    // boundary (recalc ON). A failed balance write surfaces as
+    // `account-balance-desync`: the rows are committed, so the user must see and
+    // fix the balance manually.
+    const { accountBalanceChanges, errors: balanceErrors } = await reconciler.finalize({
+      recalculateBalance,
+      createdAccounts,
+      logLabel: 'MS Money import',
+    });
+    summary.accountBalanceChanges.push(...accountBalanceChanges);
+    summary.errors.push(...balanceErrors);
+
+    // The cached parse result has served its purpose. Dropping it early frees the
+    // disk entry ahead of the sweeper; a failure only delays that, so it must not
+    // fail an import whose rows are already committed.
+    try {
+      await deleteMsMoneyUpload({ userId, uploadId });
+    } catch (err) {
+      logger.error({ message: '[MS Money import] Failed to delete cached upload', error: err as Error });
+    }
+
+    return summary;
+  } finally {
+    await schedulePayeeExtraction({ userId, transactionIds: extractionTransactionIds });
+  }
 }

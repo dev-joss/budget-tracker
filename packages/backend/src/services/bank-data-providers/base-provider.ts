@@ -263,7 +263,13 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
    * {@link runQueuedSync} instead — the worker, not this helper, owns the
    * SYNCING → COMPLETED transition there.
    */
-  protected async runSyncWithStatus<T extends { transactionIds: string[]; extraAutoLinkCandidateIds?: string[] }>({
+  protected async runSyncWithStatus<
+    T extends {
+      transactionIds: string[];
+      extraAutoLinkCandidateIds?: string[];
+      payeeExtractionTransactionIds?: string[];
+    },
+  >({
     systemAccountId,
     userId,
     connectionId,
@@ -288,6 +294,7 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
         accountId: systemAccountId,
         transactionIds: result.transactionIds,
         extraAutoLinkCandidateIds: result.extraAutoLinkCandidateIds,
+        payeeExtractionTransactionIds: result.payeeExtractionTransactionIds,
       });
 
       await setAccountSyncStatus({ accountId: systemAccountId, status: SyncStatus.COMPLETED, userId });

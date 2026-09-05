@@ -24,6 +24,7 @@ import { createPayeesIfNeeded } from '@services/import-export/core/resolve/creat
 import { createNamedTagsIfNeeded } from '@services/import-export/core/resolve/create-tags-if-needed';
 import { excludeSkippedAccounts } from '@services/import-export/core/resolve/exclude-skipped-accounts';
 import { signedRowContribution } from '@services/import-export/core/signed-row-contribution';
+import { schedulePayeeExtraction } from '@services/payees/ai-extraction/schedule';
 import { applyPayeeDefaultTags } from '@services/payees/apply-default-tags';
 import { createTransaction } from '@services/transactions';
 import { selectAccountsWithPlannedRows } from '@services/transactions/planned-matching';
@@ -282,235 +283,241 @@ export async function executeBudgetBakersWalletImport({
 
   // Phase 5: transactions (ordinary rows + unpaired transfer legs). Rows the
   // user confirmed as duplicates are counted and skipped without a tick.
-  for (const tx of importableTransactions) {
-    if (skipSet.has(tx.rowIndex)) {
-      summary.duplicatesSkipped += 1;
-      continue;
-    }
-    try {
-      const accountId = accountIdByName.get(tx.accountName);
-      if (!accountId) throw new ValidationError({ message: `Unknown account "${tx.accountName}"` });
+  const extractionTransactionIds: string[] = [];
+  try {
+    for (const tx of importableTransactions) {
+      if (skipSet.has(tx.rowIndex)) {
+        summary.duplicatesSkipped += 1;
+        continue;
+      }
+      try {
+        const accountId = accountIdByName.get(tx.accountName);
+        if (!accountId) throw new ValidationError({ message: `Unknown account "${tx.accountName}"` });
 
-      // Direction comes from the parsed CSV `type`, not the sign of `amount`:
-      // a zero-amount row has no sign (`-0 === 0`) yet still has a real
-      // Expense/Income type the user expects to keep.
-      const transactionType = tx.type;
-      const amount = Money.fromDecimal(Math.abs(tx.amount));
+        // Direction comes from the parsed CSV `type`, not the sign of `amount`:
+        // a zero-amount row has no sign (`-0 === 0`) yet still has a real
+        // Expense/Income type the user expects to keep.
+        const transactionType = tx.type;
+        const amount = Money.fromDecimal(Math.abs(tx.amount));
 
-      // Out-of-wallet legs carry no real category and model money leaving/entering
-      // the tracked set of accounts, so they import as `transfer_out_wallet` with
-      // no destination account and no category. Ordinary rows resolve their
-      // category through the mapping; an unmapped name yields undefined (no
-      // category), matching CSV behaviour.
-      const categoryId = !tx.outOfWallet && tx.categoryName ? categoryNameToId.get(tx.categoryName) : undefined;
-      // A row can carry several comma-separated Wallet labels; attach every one.
-      // Any name without a resolved id (should not happen — all parsed tags are
-      // created in Phase 4) is dropped; an empty result becomes undefined so the
-      // row imports untagged rather than with an empty tag list.
-      const resolvedTagIds = tx.tags
-        .map((name) => tagIdByName.get(name))
-        .filter((id): id is string => id !== undefined);
-      const tagIds = resolvedTagIds.length > 0 ? resolvedTagIds : undefined;
-      const hasImportedTags = tagIds !== undefined;
-      const transferNature = tx.outOfWallet
-        ? TRANSACTION_TRANSFER_NATURE.transfer_out_wallet
-        : TRANSACTION_TRANSFER_NATURE.not_transfer;
+        // Out-of-wallet legs carry no real category and model money leaving/entering
+        // the tracked set of accounts, so they import as `transfer_out_wallet` with
+        // no destination account and no category. Ordinary rows resolve their
+        // category through the mapping; an unmapped name yields undefined (no
+        // category), matching CSV behaviour.
+        const categoryId = !tx.outOfWallet && tx.categoryName ? categoryNameToId.get(tx.categoryName) : undefined;
+        // A row can carry several comma-separated Wallet labels; attach every one.
+        // Any name without a resolved id (should not happen — all parsed tags are
+        // created in Phase 4) is dropped; an empty result becomes undefined so the
+        // row imports untagged rather than with an empty tag list.
+        const resolvedTagIds = tx.tags
+          .map((name) => tagIdByName.get(name))
+          .filter((id): id is string => id !== undefined);
+        const tagIds = resolvedTagIds.length > 0 ? resolvedTagIds : undefined;
+        const hasImportedTags = tagIds !== undefined;
+        const transferNature = tx.outOfWallet
+          ? TRANSACTION_TRANSFER_NATURE.transfer_out_wallet
+          : TRANSACTION_TRANSFER_NATURE.not_transfer;
 
-      // Link the Phase 4b Payee explicitly (caller id wins over createTransaction's
-      // extraction); `rawMerchantName` keeps the raw name, `payeeLocked` stays
-      // false. An empty `payee` cell resolves to undefined → imports without a Payee.
-      const payeeId = tx.payeeName ? payeeNameToId.get(tx.payeeName) : undefined;
+        // Link the Phase 4b Payee explicitly (caller id wins over createTransaction's
+        // extraction); `rawMerchantName` keeps the raw name, `payeeLocked` stays
+        // false. An empty `payee` cell resolves to undefined → imports without a Payee.
+        const payeeId = tx.payeeName ? payeeNameToId.get(tx.payeeName) : undefined;
 
-      const createResult = await createTransaction({
-        userId,
-        accountId,
-        amount,
-        commissionRate: Money.zero(),
-        note: tx.note,
-        time: new Date(tx.date),
-        transactionType,
-        paymentType: mapBudgetBakersWalletPaymentType({ raw: tx.paymentType }),
-        accountType: ACCOUNT_TYPES.system,
-        transferNature,
-        categoryId,
-        tagIds,
-        payeeId,
-        rawMerchantName: tx.payeeName || null,
-        externalData: { importDetails },
-        // A category from the mapped Wallet column is authoritative and beats a
-        // linked Payee's enforce/hint default. Inert when the row has no mapped
-        // category, so Payee categorization still runs then.
-        categoryIdIsExplicit: categoryId != null,
-        matchPlanned: plannedMatchAccountIds.has(accountId),
-      });
-      const [transaction] = createResult;
-
-      // Fold this committed row into the per-account balance tally IMMEDIATELY after
-      // the commit, before any post-commit side-effect that can throw
-      // (`applyPayeeDefaultTags` below): the balance hook has already moved
-      // `currentBalance`, so a row missing from the tally would make the reconcile
-      // adjustment too large with no desync error. Signed the way the hook applied it
-      // (income adds, expense subtracts).
-      reconciler.recordRow({
-        accountId,
-        rowIso: tx.date,
-        ...signedRowContribution({
-          isIncome: transactionType === TRANSACTION_TYPES.income,
+        const createResult = await createTransaction({
+          userId,
+          accountId,
           amount,
-        }),
-      });
+          commissionRate: Money.zero(),
+          note: tx.note,
+          time: new Date(tx.date),
+          transactionType,
+          paymentType: mapBudgetBakersWalletPaymentType({ raw: tx.paymentType }),
+          accountType: ACCOUNT_TYPES.system,
+          transferNature,
+          categoryId,
+          tagIds,
+          payeeId,
+          rawMerchantName: tx.payeeName || null,
+          externalData: { importDetails },
+          // A category from the mapped Wallet column is authoritative and beats a
+          // linked Payee's enforce/hint default. Inert when the row has no mapped
+          // category, so Payee categorization still runs then.
+          categoryIdIsExplicit: categoryId != null,
+          matchPlanned: plannedMatchAccountIds.has(accountId),
+        });
+        if (createResult[0]) extractionTransactionIds.push(createResult[0].id);
+        const [transaction] = createResult;
 
-      // A merged row is an existing planned transaction, not a newly imported
-      // one, and it keeps the plan's own tag set.
-      if (createResult.mergedIntoPlanned) {
-        summary.merged += 1;
-      } else {
-        if (tx.outOfWallet) {
-          summary.outOfWalletImported += 1;
+        // Fold this committed row into the per-account balance tally IMMEDIATELY after
+        // the commit, before any post-commit side-effect that can throw
+        // (`applyPayeeDefaultTags` below): the balance hook has already moved
+        // `currentBalance`, so a row missing from the tally would make the reconcile
+        // adjustment too large with no desync error. Signed the way the hook applied it
+        // (income adds, expense subtracts).
+        reconciler.recordRow({
+          accountId,
+          rowIso: tx.date,
+          ...signedRowContribution({
+            isIncome: transactionType === TRANSACTION_TYPES.income,
+            amount,
+          }),
+        });
+
+        // A merged row is an existing planned transaction, not a newly imported
+        // one, and it keeps the plan's own tag set.
+        if (createResult.mergedIntoPlanned) {
+          summary.merged += 1;
         } else {
-          summary.transactionsImported += 1;
-        }
+          if (tx.outOfWallet) {
+            summary.outOfWalletImported += 1;
+          } else {
+            summary.transactionsImported += 1;
+          }
 
-        // Union step: explicit `tagIds` made createTransaction skip the payee's
-        // default tags, so re-apply them here on top of the imported set.
-        // `applyPayeeDefaultTags` is add-only and dedupes, so both sets coexist.
-        // The transaction is already committed, so a failure here loses only the
-        // default tags and is reported as its own error — reporting it as a
-        // failed row would invite a re-import that duplicates the transaction.
-        if (transaction && hasImportedTags && transaction.payeeId) {
-          try {
-            await applyPayeeDefaultTags({
-              accountOwnerUserId: userId,
-              transactionId: transaction.id,
-              payeeId: transaction.payeeId,
-            });
-          } catch (err) {
-            logger.error({
-              message: `[Budget Bakers Wallet import] Failed to apply default payee tags (row ${tx.rowIndex}, account "${tx.accountName}")`,
-              error: err as Error,
-            });
-            summary.errors.push({
-              rowIndex: tx.rowIndex,
-              error: 'Transaction was imported, but the payee default tags could not be applied',
-            });
+          // Union step: explicit `tagIds` made createTransaction skip the payee's
+          // default tags, so re-apply them here on top of the imported set.
+          // `applyPayeeDefaultTags` is add-only and dedupes, so both sets coexist.
+          // The transaction is already committed, so a failure here loses only the
+          // default tags and is reported as its own error — reporting it as a
+          // failed row would invite a re-import that duplicates the transaction.
+          if (transaction && hasImportedTags && transaction.payeeId) {
+            try {
+              await applyPayeeDefaultTags({
+                accountOwnerUserId: userId,
+                transactionId: transaction.id,
+                payeeId: transaction.payeeId,
+              });
+            } catch (err) {
+              logger.error({
+                message: `[Budget Bakers Wallet import] Failed to apply default payee tags (row ${tx.rowIndex}, account "${tx.accountName}")`,
+                error: err as Error,
+              });
+              summary.errors.push({
+                rowIndex: tx.rowIndex,
+                error: 'Transaction was imported, but the payee default tags could not be applied',
+              });
+            }
           }
         }
+      } catch (err) {
+        logger.error({
+          message: `[Budget Bakers Wallet import] Failed to import transaction (row ${tx.rowIndex}, account "${tx.accountName}")`,
+          error: err as Error,
+        });
+        summary.errors.push({
+          rowIndex: tx.rowIndex,
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
       }
-    } catch (err) {
-      logger.error({
-        message: `[Budget Bakers Wallet import] Failed to import transaction (row ${tx.rowIndex}, account "${tx.accountName}")`,
-        error: err as Error,
-      });
-      summary.errors.push({
-        rowIndex: tx.rowIndex,
-        error: err instanceof Error ? err.message : 'Unknown error',
-      });
+      // Tick once per attempted row, regardless of success or failure, and OUTSIDE
+      // the correctness try/catch: a progress/SSE error must not be recorded as a
+      // fake per-row import error against a row that did commit, nor abort the run.
+      await tick();
     }
-    // Tick once per attempted row, regardless of success or failure, and OUTSIDE
-    // the correctness try/catch: a progress/SSE error must not be recorded as a
-    // fake per-row import error against a row that did commit, nor abort the run.
-    await tick();
-  }
 
-  // Phase 6: transfers. A Wallet export records the exact amount on each side of
-  // a transfer, so a cross-currency transfer carries a distinct source amount and
-  // destination amount (e.g. 100 USD leaving, 92 EUR arriving). Both values are
-  // passed straight through: `createTransaction` with `common_transfer` writes
-  // the source (expense) and destination (income) legs and links them via
-  // `transferId`.
-  for (const xfer of transfersToWrite) {
-    try {
-      const sourceAccountId = accountIdByName.get(xfer.sourceAccountName);
-      const destinationAccountId = accountIdByName.get(xfer.destinationAccountName);
-      if (!sourceAccountId || !destinationAccountId) {
-        throw new ValidationError({
-          message: `Transfer references unknown account ("${xfer.sourceAccountName}" or "${xfer.destinationAccountName}").`,
-        });
-      }
+    // Phase 6: transfers. A Wallet export records the exact amount on each side of
+    // a transfer, so a cross-currency transfer carries a distinct source amount and
+    // destination amount (e.g. 100 USD leaving, 92 EUR arriving). Both values are
+    // passed straight through: `createTransaction` with `common_transfer` writes
+    // the source (expense) and destination (income) legs and links them via
+    // `transferId`.
+    for (const xfer of transfersToWrite) {
+      try {
+        const sourceAccountId = accountIdByName.get(xfer.sourceAccountName);
+        const destinationAccountId = accountIdByName.get(xfer.destinationAccountName);
+        if (!sourceAccountId || !destinationAccountId) {
+          throw new ValidationError({
+            message: `Transfer references unknown account ("${xfer.sourceAccountName}" or "${xfer.destinationAccountName}").`,
+          });
+        }
 
-      const [, destinationLeg] = await createTransaction({
-        userId,
-        accountId: sourceAccountId,
-        amount: Money.fromDecimal(xfer.sourceAmount),
-        commissionRate: Money.zero(),
-        note: xfer.note,
-        time: new Date(xfer.date),
-        transactionType: TRANSACTION_TYPES.expense,
-        paymentType: PAYMENT_TYPES.bankTransfer,
-        accountType: ACCOUNT_TYPES.system,
-        transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
-        destinationAccountId,
-        destinationAmount: Money.fromDecimal(xfer.destinationAmount),
-        externalData: { importDetails },
-      });
-
-      // `createTransaction` types the destination leg optional for non-transfer
-      // calls; a `common_transfer` always writes and returns both legs. A missing
-      // destination leg means the destination account's balance moved without a
-      // matching tally entry — surface it instead of silently desyncing.
-      if (!destinationLeg) {
-        throw new ValidationError({
-          message: `Transfer destination leg missing for "${xfer.sourceAccountName}" → "${xfer.destinationAccountName}"; account balances may be incorrect.`,
-        });
-      }
-
-      // Each transfer leg lands on its own account, so each is recorded against
-      // that account's own boundary: source loses `sourceAmount` (expense),
-      // destination gains `destinationAmount` (income).
-      reconciler.recordRow({
-        accountId: sourceAccountId,
-        rowIso: xfer.date,
-        ...signedRowContribution({
-          isIncome: false,
+        const [, destinationLeg] = await createTransaction({
+          userId,
+          accountId: sourceAccountId,
           amount: Money.fromDecimal(xfer.sourceAmount),
-        }),
-      });
-      reconciler.recordRow({
-        accountId: destinationAccountId,
-        rowIso: xfer.date,
-        ...signedRowContribution({
-          isIncome: true,
-          amount: Money.fromDecimal(xfer.destinationAmount),
-        }),
-      });
+          commissionRate: Money.zero(),
+          note: xfer.note,
+          time: new Date(xfer.date),
+          transactionType: TRANSACTION_TYPES.expense,
+          paymentType: PAYMENT_TYPES.bankTransfer,
+          accountType: ACCOUNT_TYPES.system,
+          transferNature: TRANSACTION_TRANSFER_NATURE.common_transfer,
+          destinationAccountId,
+          destinationAmount: Money.fromDecimal(xfer.destinationAmount),
+          externalData: { importDetails },
+        });
 
-      summary.transfersImported += 1;
-    } catch (err) {
-      logger.error({
-        message: `[Budget Bakers Wallet import] Failed to import transfer ("${xfer.sourceAccountName}" → "${xfer.destinationAccountName}", rows ${xfer.rowIndices.join(', ')})`,
-        error: err as Error,
-      });
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      // One error per leg so a user scanning by CSV line number can find both
-      // halves of the failed transfer, not just the expense leg.
-      for (const rowIndex of xfer.rowIndices) {
-        summary.errors.push({ rowIndex, error: message });
+        // `createTransaction` types the destination leg optional for non-transfer
+        // calls; a `common_transfer` always writes and returns both legs. A missing
+        // destination leg means the destination account's balance moved without a
+        // matching tally entry — surface it instead of silently desyncing.
+        if (!destinationLeg) {
+          throw new ValidationError({
+            message: `Transfer destination leg missing for "${xfer.sourceAccountName}" → "${xfer.destinationAccountName}"; account balances may be incorrect.`,
+          });
+        }
+
+        // Each transfer leg lands on its own account, so each is recorded against
+        // that account's own boundary: source loses `sourceAmount` (expense),
+        // destination gains `destinationAmount` (income).
+        reconciler.recordRow({
+          accountId: sourceAccountId,
+          rowIso: xfer.date,
+          ...signedRowContribution({
+            isIncome: false,
+            amount: Money.fromDecimal(xfer.sourceAmount),
+          }),
+        });
+        reconciler.recordRow({
+          accountId: destinationAccountId,
+          rowIso: xfer.date,
+          ...signedRowContribution({
+            isIncome: true,
+            amount: Money.fromDecimal(xfer.destinationAmount),
+          }),
+        });
+
+        summary.transfersImported += 1;
+      } catch (err) {
+        logger.error({
+          message: `[Budget Bakers Wallet import] Failed to import transfer ("${xfer.sourceAccountName}" → "${xfer.destinationAccountName}", rows ${xfer.rowIndices.join(', ')})`,
+          error: err as Error,
+        });
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        // One error per leg so a user scanning by CSV line number can find both
+        // halves of the failed transfer, not just the expense leg.
+        for (const rowIndex of xfer.rowIndices) {
+          summary.errors.push({ rowIndex, error: message });
+        }
       }
+      // Tick once per attempted transfer, regardless of success or failure, and
+      // OUTSIDE the correctness try/catch: a progress/SSE error must not be
+      // recorded as a fake import error nor abort the run.
+      await tick();
     }
-    // Tick once per attempted transfer, regardless of success or failure, and
-    // OUTSIDE the correctness try/catch: a progress/SSE error must not be
-    // recorded as a fake import error nor abort the run.
-    await tick();
+
+    // Phase 7: balance targeting. Must run AFTER all rows are written so the
+    // back-adjustment is computed against the current balance the imported
+    // transactions produced. `finalize` owns the whole pass: created accounts
+    // (partitioned alongside the captured set in Phase 2) get their entered
+    // `currentBalance` (when non-null) forced as the final value (a null target
+    // leaves the balance at Σ(imported rows)) plus a summary entry read back
+    // afterwards; linked accounts are back-adjusted against their pre-import
+    // snapshot — preserved (recalc OFF) or moved by the rows dated on/after the
+    // boundary (recalc ON). A failed balance write surfaces as
+    // `account-balance-desync`: the rows are committed, so the user must see and
+    // fix the balance manually.
+    const { accountBalanceChanges, errors: balanceErrors } = await reconciler.finalize({
+      recalculateBalance,
+      createdAccounts,
+      logLabel: 'Budget Bakers Wallet import',
+    });
+    summary.accountBalanceChanges.push(...accountBalanceChanges);
+    summary.errors.push(...balanceErrors);
+
+    return summary;
+  } finally {
+    await schedulePayeeExtraction({ userId, transactionIds: extractionTransactionIds });
   }
-
-  // Phase 7: balance targeting. Must run AFTER all rows are written so the
-  // back-adjustment is computed against the current balance the imported
-  // transactions produced. `finalize` owns the whole pass: created accounts
-  // (partitioned alongside the captured set in Phase 2) get their entered
-  // `currentBalance` (when non-null) forced as the final value (a null target
-  // leaves the balance at Σ(imported rows)) plus a summary entry read back
-  // afterwards; linked accounts are back-adjusted against their pre-import
-  // snapshot — preserved (recalc OFF) or moved by the rows dated on/after the
-  // boundary (recalc ON). A failed balance write surfaces as
-  // `account-balance-desync`: the rows are committed, so the user must see and
-  // fix the balance manually.
-  const { accountBalanceChanges, errors: balanceErrors } = await reconciler.finalize({
-    recalculateBalance,
-    createdAccounts,
-    logLabel: 'Budget Bakers Wallet import',
-  });
-  summary.accountBalanceChanges.push(...accountBalanceChanges);
-  summary.errors.push(...balanceErrors);
-
-  return summary;
 }

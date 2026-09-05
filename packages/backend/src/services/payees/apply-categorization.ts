@@ -16,6 +16,7 @@ interface ApplyPayeeCategorizationParams {
   accountOwnerUserId: number;
   transactionId: string;
   payeeId: string;
+  lateLink?: boolean;
 }
 
 /**
@@ -47,8 +48,9 @@ export const applyPayeeCategorization = withTransaction(
     accountOwnerUserId,
     transactionId,
     payeeId,
+    lateLink = false,
   }: ApplyPayeeCategorizationParams): Promise<Transactions | null> => {
-    const latest = await Transactions.findByPk(transactionId);
+    const latest = await Transactions.findByPk(transactionId, { lock: true });
     if (!latest) return null;
 
     const meta = latest.categorizationMeta ?? null;
@@ -61,6 +63,14 @@ export const applyPayeeCategorization = withTransaction(
       attributes: ['id', 'defaultCategoryId', 'categorizationMode'],
     });
     if (!payee?.defaultCategoryId || payee.categorizationMode === CATEGORIZATION_MODE.off) {
+      return latest;
+    }
+
+    if (
+      lateLink &&
+      payee.categorizationMode === CATEGORIZATION_MODE.hint &&
+      meta?.source === CATEGORIZATION_SOURCE.ai
+    ) {
       return latest;
     }
 

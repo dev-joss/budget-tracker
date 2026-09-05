@@ -96,6 +96,7 @@ export interface UserSettingsSchema {
   matchTransfersWithManualAccounts?: boolean;
   sidebarSections?: SidebarSectionsConfig;
   payeeExtractionUsesDescription?: boolean;
+  payeeAiExtractionEnabled?: boolean;
   ui?: UiSettings;
   subscriptions?: SubscriptionsSettings;
   savedPivotViews?: SavedPivotView[];

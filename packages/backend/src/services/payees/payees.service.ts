@@ -30,7 +30,7 @@ import { Op, QueryTypes } from 'sequelize';
 
 import { withTransaction } from '../common/with-transaction';
 import { normalizePayeeName } from './normalize-name';
-import { ensureAliasExists, parsePayeeName, resolveNormalizedName } from './payee-namespace';
+import { ensureAliasExists, lockPayeeNamespace, parsePayeeName, resolveNormalizedName } from './payee-namespace';
 import { getPayeeStatsMap, PayeeStatsRow } from './payee-stats';
 
 const MAX_LIST_LIMIT = 200;
@@ -317,6 +317,7 @@ export const createPayee = withTransaction(
     logoInitials,
     logoColor,
   }: CreatePayeeParams): Promise<Payees> => {
+    await lockPayeeNamespace({ userId });
     const { display, normalized } = parsePayeeName({ raw: name, emptyMessageKey: 'payees.nameRequired' });
 
     if (defaultCategoryId) {
@@ -408,6 +409,7 @@ export const updatePayee = withTransaction(
     logoInitials,
     logoColor,
   }: UpdatePayeeParams): Promise<Payees> => {
+    await lockPayeeNamespace({ userId });
     const payee = await loadPayeeOrThrow({ userId, id });
 
     if (defaultCategoryId === null) {
@@ -506,6 +508,7 @@ interface DeletePayeeParams {
 }
 
 export const deletePayee = withTransaction(async ({ userId, id }: DeletePayeeParams): Promise<void> => {
+  await lockPayeeNamespace({ userId });
   const payee = await loadPayeeOrThrow({ userId, id });
   await pauseAutomationsReferencing({ userId, refType: 'payee', refId: payee.id, label: payee.name });
   // FK `SET NULL` on `Transactions.payeeId` unlinks transactions automatically.
@@ -525,6 +528,7 @@ interface MergePayeesParams {
  */
 export const mergePayees = withTransaction(
   async ({ userId, sourceId, targetId }: MergePayeesParams): Promise<Payees> => {
+    await lockPayeeNamespace({ userId });
     if (sourceId === targetId) {
       throw new ValidationError({ message: t({ key: 'payees.mergeSelf' }) });
     }
@@ -608,6 +612,7 @@ interface CreatePayeeAliasParams {
  */
 export const createPayeeAlias = withTransaction(
   async ({ userId, payeeId, rawName }: CreatePayeeAliasParams): Promise<Payees> => {
+    await lockPayeeNamespace({ userId });
     await loadPayeeOrThrow({ userId, id: payeeId });
 
     const { display, normalized } = parsePayeeName({ raw: rawName, emptyMessageKey: 'payees.aliasNameRequired' });
@@ -655,6 +660,7 @@ interface DeletePayeeAliasParams {
  */
 export const deletePayeeAlias = withTransaction(
   async ({ userId, payeeId, aliasId }: DeletePayeeAliasParams): Promise<void> => {
+    await lockPayeeNamespace({ userId });
     // Authorize through Payees scope.
     const payee = await loadPayeeOrThrow({ userId, id: payeeId });
     const alias = await PayeeAliases.findOne({

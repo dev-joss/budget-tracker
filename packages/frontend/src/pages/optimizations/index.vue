@@ -8,6 +8,12 @@ const router = useRouter();
 
 const optimizations = [
   {
+    icon: SparklesIcon,
+    titleKey: 'common.aiFeatures.payeeExtraction.name',
+    descriptionKey: 'common.aiFeatures.payeeExtraction.description',
+    route: ROUTES_NAMES.optimizationsResolvePayees,
+  },
+  {
     icon: ArrowRightLeftIcon,
     titleKey: 'optimizations.cards.transfers.title',
     descriptionKey: 'optimizations.cards.transfers.description',

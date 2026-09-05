@@ -11,7 +11,7 @@ export function buildFeatureStatusPayload({
   config: AIFeatureConfig | null;
   aiSettings: StoredAiSettings | null;
 }): AIFeatureStatus {
-  const { modelId, modelName, usingUserKey, customEndpointId, endpointName } = resolveFeatureModelDisplay({
+  const { modelId, modelName, usingUserKey, customEndpointId, endpointName, isAvailable } = resolveFeatureModelDisplay({
     feature,
     config,
     aiSettings,
@@ -20,6 +20,7 @@ export function buildFeatureStatusPayload({
   return {
     feature,
     isConfigured: !!config,
+    isAvailable,
     modelId,
     modelName,
     usingUserKey,

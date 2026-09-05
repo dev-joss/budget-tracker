@@ -6,6 +6,7 @@ import BankDataProviderConnections from '@models/bank-data-provider-connections.
 import { findOneTransaction } from '@models/transactions-query';
 import { getUserDefaultCategory } from '@models/users.model';
 import { withTransaction } from '@services/common/with-transaction';
+import { lockPayeeNamespace } from '@services/payees/payee-namespace';
 import { createTransaction } from '@services/transactions';
 import type { AccountBase, PlaidApi, RemovedTransaction, Transaction } from 'plaid';
 
@@ -85,7 +86,8 @@ const applyPlaidChanges = withTransaction(
     startingCursor: string | null;
     changes: PlaidSyncChanges;
     plaidAccounts: AccountBase[];
-  }): Promise<string[]> => {
+  }): Promise<{ createdIds: string[]; extractionTransactionIds: string[] }> => {
+    await lockPayeeNamespace({ userId });
     const connection = await BankDataProviderConnections.findByPk(connectionId, { lock: true });
     if (!connection || connection.userId !== userId) throw new Error('Plaid connection was not found');
     const metadata = connection.metadata as PlaidConnectionMetadata;
@@ -97,6 +99,7 @@ const applyPlaidChanges = withTransaction(
     );
     const defaultCategoryId = await getUserDefaultCategory({ id: userId });
     const createdIds: string[] = [];
+    const extractionTransactionIds: string[] = [];
 
     for (const transaction of changes.added) {
       if (transaction.pending) continue;
@@ -128,6 +131,7 @@ const applyPlaidChanges = withTransaction(
         rawMerchantName: mapped.rawMerchantName,
         matchPlanned: true,
       });
+      if (created.mergedIntoPlanned) extractionTransactionIds.push(created[0].id);
       if (!created.mergedIntoPlanned) createdIds.push(created[0].id);
     }
 
@@ -152,6 +156,7 @@ const applyPlaidChanges = withTransaction(
         note: existing.note === previousPlaid.sourceNote ? mapped.note : existing.note,
         externalData: { ...existing.externalData, plaid: mapped.sourceData },
       });
+      extractionTransactionIds.push(existing.id);
     }
 
     for (const removed of changes.removed) {
@@ -181,7 +186,7 @@ const applyPlaidChanges = withTransaction(
     connection.metadata = { ...metadata, cursor: changes.nextCursor };
     connection.lastSyncAt = new Date();
     await connection.save();
-    return createdIds;
+    return { createdIds, extractionTransactionIds };
   },
 );
 
@@ -198,7 +203,7 @@ export const syncPlaidItem = async ({ connectionId, userId }: { connectionId: st
     startingCursor: metadata.cursor || null,
   });
   const accountsResponse = await createPlaidApiClient({ config }).accountsGet({ access_token: accessToken });
-  const createdIds = await applyPlaidChanges({
+  const { createdIds, extractionTransactionIds } = await applyPlaidChanges({
     connectionId,
     userId,
     startingCursor: metadata.cursor || null,
@@ -212,5 +217,5 @@ export const syncPlaidItem = async ({ connectionId, userId }: { connectionId: st
     removed: changes.removed.length,
     requestIds: changes.requestIds,
   });
-  return { createdIds };
+  return { createdIds, extractionTransactionIds };
 };

@@ -39,12 +39,14 @@ const initializeQueue = () => {
         accounts.map((account) => setAccountSyncStatus({ accountId: account.id, status: SyncStatus.SYNCING, userId })),
       );
       const createdIds: string[] = [];
+      const extractionTransactionIds: string[] = [];
       try {
         let observedGeneration: string | null;
         do {
           observedGeneration = await redisClient.get(generationKey({ connectionId }));
           const result = await syncPlaidItem({ connectionId, userId });
           createdIds.push(...result.createdIds);
+          extractionTransactionIds.push(...result.extractionTransactionIds);
         } while ((await redisClient.get(generationKey({ connectionId }))) !== observedGeneration);
 
         for (const account of accounts) {
@@ -54,12 +56,17 @@ const initializeQueue = () => {
             balanceAdjustments: 'include',
             completeness: 'all',
             attributes: ['id'],
-            where: { id: { [Op.in]: createdIds }, accountId: account.id },
+            where: { id: { [Op.in]: [...createdIds, ...extractionTransactionIds] }, accountId: account.id },
           });
           await linkAndEmitSyncedTransactions({
             userId,
             accountId: account.id,
-            transactionIds: accountTransactions.map((transaction) => transaction.id),
+            transactionIds: accountTransactions
+              .filter((transaction) => createdIds.includes(transaction.id))
+              .map((transaction) => transaction.id),
+            payeeExtractionTransactionIds: accountTransactions
+              .filter((transaction) => extractionTransactionIds.includes(transaction.id))
+              .map((transaction) => transaction.id),
           });
         }
         await Promise.all(

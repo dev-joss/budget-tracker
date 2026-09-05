@@ -1,4 +1,10 @@
 {
+  "payeeExtraction": {
+    "disabled": "Enable description matching and AI payee extraction in Payee Settings first.",
+    "notConfigured": "Configure an AI provider for payee extraction first.",
+    "alreadyRunning": "A payee extraction run is already active.",
+    "runNotFound": "Payee extraction run not found."
+  },
   "common": {
     "processAlreadyLocked": "Sync process for \"{{lockKey}}\" is already locked.",
     "serviceTemporarilyUnavailable": "Service temporarily unavailable. Please try again."

@@ -1,9 +1,10 @@
 import type { ExtractedTransaction, TransactionImportDetails } from '@bt/shared/types';
 import { ImportSource, TRANSACTION_TYPES } from '@bt/shared/types';
 import { NONEXISTENT_ID } from '@common/lib/record-id-helpers';
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import Transactions from '@models/transactions.model';
+import * as payeeExtraction from '@services/payees/ai-extraction/schedule';
 import * as helpers from '@tests/helpers';
 
 describe('Statement Parser - Execute Import endpoint', () => {
@@ -40,6 +41,7 @@ describe('Statement Parser - Execute Import endpoint', () => {
 
   describe('successful import', () => {
     it('imports every row into the target account with the right amounts, notes and importDetails', async () => {
+      const scheduleSpy = jest.spyOn(payeeExtraction, 'schedulePayeeExtraction');
       const account1 = await helpers.createAccount({ raw: true });
       const account2 = await helpers.createAccount({ raw: true });
 
@@ -77,6 +79,10 @@ describe('Statement Parser - Execute Import endpoint', () => {
       expect(result.summary.skipped).toBe(0);
       expect(result.summary.errors).toHaveLength(0);
       expect(result.newTransactionIds).toHaveLength(5);
+      expect(scheduleSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ transactionIds: expect.arrayContaining(result.newTransactionIds) }),
+      );
+      scheduleSpy.mockRestore();
       expect(result.batchId).toBeDefined();
 
       const allTransactions = await helpers.getTransactions({ raw: true });

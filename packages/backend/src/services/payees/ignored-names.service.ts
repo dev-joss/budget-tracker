@@ -3,7 +3,7 @@ import { ConflictError, NotFoundError } from '@js/errors';
 import PayeeIgnoredNames from '@models/payee-ignored-names.model';
 
 import { withTransaction } from '../common/with-transaction';
-import { parsePayeeName, resolveNormalizedName } from './payee-namespace';
+import { lockPayeeNamespace, parsePayeeName, resolveNormalizedName } from './payee-namespace';
 import { deletePayee, loadPayeeOrThrow } from './payees.service';
 
 interface ListInput {
@@ -32,6 +32,7 @@ interface AddInput {
 
 export const addPayeeIgnoredName = withTransaction(
   async ({ userId, rawName, force = false }: AddInput): Promise<PayeeIgnoredNames> => {
+    await lockPayeeNamespace({ userId });
     const { display, normalized } = parsePayeeName({ raw: rawName, emptyMessageKey: 'payees.nameRequired' });
 
     const existing = await PayeeIgnoredNames.findOne({ where: { userId, normalizedName: normalized } });
@@ -67,6 +68,7 @@ interface RemoveInput {
 }
 
 export const removePayeeIgnoredName = withTransaction(async ({ userId, id }: RemoveInput): Promise<void> => {
+  await lockPayeeNamespace({ userId });
   const row = await PayeeIgnoredNames.findOne({ where: { id, userId }, attributes: ['id'] });
   if (!row) {
     throw new NotFoundError({ message: t({ key: 'payees.ignoredNameNotFound' }) });
@@ -93,6 +95,7 @@ interface DeleteAndIgnoreResult {
  */
 export const deletePayeeAndIgnoreFuture = withTransaction(
   async ({ userId, payeeId }: DeleteAndIgnoreInput): Promise<DeleteAndIgnoreResult> => {
+    await lockPayeeNamespace({ userId });
     const payee = await loadPayeeOrThrow({ userId, id: payeeId });
     const aliases = payee.aliases ?? [];
 

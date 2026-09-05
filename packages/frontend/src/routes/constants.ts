@@ -43,6 +43,7 @@ export const ROUTES_NAMES = Object.freeze({
   optimizations: `${ROUTER_LAYOUTS.dashboard}.optimizations`,
   optimizationsTransfers: `${ROUTER_LAYOUTS.dashboard}.optimizations.transfers`,
   optimizationsAiCategorization: `${ROUTER_LAYOUTS.dashboard}.optimizations.ai-categorization`,
+  optimizationsResolvePayees: `${ROUTER_LAYOUTS.dashboard}.optimizations.resolve-payees`,
   optimizationsWorkExpenses: `${ROUTER_LAYOUTS.dashboard}.optimizations.work-expenses`,
   automations: `${ROUTER_LAYOUTS.dashboard}.automations`,
   automationCreate: `${ROUTER_LAYOUTS.dashboard}.automations.create`,

@@ -258,6 +258,12 @@ const routes: RouteRecordRaw[] = [
         meta: { i18nChunks: ['pages/optimizations', 'pages/transactions'] as I18nChunkName[] },
       },
       {
+        path: '/transactions/optimizations/resolve-payees',
+        name: ROUTES_NAMES.optimizationsResolvePayees,
+        component: () => import('@/pages/optimizations/resolve-payees/index.vue'),
+        meta: { i18nChunks: ['pages/optimizations', 'pages/transactions', 'pages/payees'] as I18nChunkName[] },
+      },
+      {
         path: '/transactions/optimizations/work-expenses',
         name: ROUTES_NAMES.optimizationsWorkExpenses,
         component: () => import('@/pages/optimizations/work-expenses/index.vue'),

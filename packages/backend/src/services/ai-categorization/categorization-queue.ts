@@ -2,6 +2,8 @@ import { CATEGORIZATION_TRIGGER } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 import { SentryTraceData, withQueueProcessSpan, withQueuePublishSpan } from '@js/utils/sentry';
 import { redisClient } from '@root/redis-client';
+import { failExtractionRun } from '@services/payees/ai-extraction/status';
+import { processExtractionJob, type PayeeExtractionJobData } from '@services/payees/ai-extraction/worker';
 import { Job, Queue, Worker } from 'bullmq';
 
 import { SSE_EVENT_TYPES, sseManager } from '../common/sse';
@@ -11,6 +13,7 @@ import { categorizeTransactions } from './categorization-service';
 import { writeTerminalOutcome } from './categorization-terminal-outcome';
 
 interface CategorizationJobData extends SentryTraceData {
+  kind?: 'categorization';
   userId: number;
   transactionIds: string[];
   /** Optional: jobs enqueued before this field existed are all auto-path runs. */
@@ -42,7 +45,7 @@ const queueName =
 /**
  * Queue for AI categorization jobs
  */
-export const categorizationQueue = new Queue<CategorizationJobData>(queueName, {
+export const categorizationQueue = new Queue<CategorizationJobData | PayeeExtractionJobData>(queueName, {
   connection,
   defaultJobOptions: {
     attempts: 3,
@@ -69,15 +72,20 @@ categorizationQueue.on('error', (err) => {
  * Worker to process categorization jobs
  * Exported for proper cleanup in test teardown
  */
-export const categorizationWorker = new Worker<CategorizationJobData>(
+export const categorizationWorker = new Worker<CategorizationJobData | PayeeExtractionJobData>(
   queueName,
-  async (job: Job<CategorizationJobData>) => {
+  async (job, token) => {
+    if (job.data.kind === 'payee-extraction') {
+      await processExtractionJob({ job: job as Job<PayeeExtractionJobData>, token });
+      return { successful: 0, skipped: 0, failed: 0, errorMessage: undefined };
+    }
+    const data = job.data;
     return withQueueProcessSpan({
       queueName,
       job,
       fn: async () => {
-        const { userId, transactionIds, trigger } = job.data;
-        const scope = job.data.scope ?? CATEGORIZATION_SCOPE.anyCategory;
+        const { userId, transactionIds, trigger } = data;
+        const scope = data.scope ?? CATEGORIZATION_SCOPE.anyCategory;
 
         logger.info(
           `[AI Categorization Worker] Processing job for user ${userId}, ${transactionIds.length} transactions, attempt ${job.attemptsMade + 1}`,
@@ -116,6 +124,7 @@ export const categorizationWorker = new Worker<CategorizationJobData>(
 
 // Worker event listeners
 categorizationWorker.on('completed', async (job, result) => {
+  if (job.data.kind === 'payee-extraction') return;
   logger.info(`[AI Categorization Worker] Job ${job.id} completed: ${JSON.stringify(result)}`);
 
   const { userId, transactionIds } = job.data;
@@ -143,6 +152,14 @@ categorizationWorker.on('completed', async (job, result) => {
 });
 
 categorizationWorker.on('failed', async (job, err) => {
+  if (job?.data.kind === 'payee-extraction') {
+    if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      await failExtractionRun({ userId: job.data.userId, runId: job.data.runId }).catch(() => {
+        logger.info('[Payee extraction] could not save failed run status', { userId: job.data.userId });
+      });
+    }
+    return;
+  }
   if (!job) {
     logger.error({ message: '[AI Categorization Worker] Job failed', error: err });
     return;

@@ -29,6 +29,7 @@ import { createTagsIfNeeded } from '@services/import-export/core/resolve/create-
 import { excludeSkippedAccounts } from '@services/import-export/core/resolve/exclude-skipped-accounts';
 import { resolveRowTagIds } from '@services/import-export/core/resolve/resolve-row-tag-ids';
 import { signedRowContribution } from '@services/import-export/core/signed-row-contribution';
+import { schedulePayeeExtraction } from '@services/payees/ai-extraction/schedule';
 import { applyPayeeDefaultTags } from '@services/payees/apply-default-tags';
 import { createTransaction } from '@services/transactions';
 import { selectAccountsWithPlannedRows } from '@services/transactions/planned-matching';
@@ -273,196 +274,202 @@ export async function executeImport({
     }
   };
 
-  for (const row of rowsToImport) {
-    try {
-      const accountId = accountNameToId.get(row.accountName);
-      if (!accountId) {
-        errors.push({
-          rowIndex: row.rowIndex,
-          error: `Account "${row.accountName}" could not be resolved`,
-        });
-        continue;
-      }
+  const extractionTransactionIds: string[] = [];
+  try {
+    for (const row of rowsToImport) {
+      try {
+        const accountId = accountNameToId.get(row.accountName);
+        if (!accountId) {
+          errors.push({
+            rowIndex: row.rowIndex,
+            error: `Account "${row.accountName}" could not be resolved`,
+          });
+          continue;
+        }
 
-      // A category from the mapped column is the user's explicit per-row choice
-      // and beats a linked Payee's enforce/hint default (`categoryIdIsExplicit`
-      // below). A row that only falls back to `defaultCategoryId` is NOT explicit,
-      // so a Payee rule may still categorize it — hence the flag keys off
-      // `mappedCategoryId`, not `categoryId`.
-      const mappedCategoryId = row.categoryName ? categoryNameToId.get(row.categoryName) : undefined;
-      const categoryId = mappedCategoryId ?? defaultCategoryId;
+        // A category from the mapped column is the user's explicit per-row choice
+        // and beats a linked Payee's enforce/hint default (`categoryIdIsExplicit`
+        // below). A row that only falls back to `defaultCategoryId` is NOT explicit,
+        // so a Payee rule may still categorize it — hence the flag keys off
+        // `mappedCategoryId`, not `categoryId`.
+        const mappedCategoryId = row.categoryName ? categoryNameToId.get(row.categoryName) : undefined;
+        const categoryId = mappedCategoryId ?? defaultCategoryId;
 
-      // Payee resolved up front; passed explicitly so createTransaction links it
-      // instead of re-extracting from `rawMerchantName`. `payeeLocked` stays at
-      // its default — an import-assigned Payee stays user-overridable.
-      const payeeId = row.payeeName ? payeeNameToId.get(row.payeeName) : undefined;
+        // Payee resolved up front; passed explicitly so createTransaction links it
+        // instead of re-extracting from `rawMerchantName`. `payeeLocked` stays at
+        // its default — an import-assigned Payee stays user-overridable.
+        const payeeId = row.payeeName ? payeeNameToId.get(row.payeeName) : undefined;
 
-      const importDetails: TransactionImportDetails = {
-        batchId,
-        importedAt: importedAt.toISOString(),
-        source: ImportSource.csv,
-      };
+        const importDetails: TransactionImportDetails = {
+          batchId,
+          importedAt: importedAt.toISOString(),
+          source: ImportSource.csv,
+        };
 
-      // Resolve the imported tags for this row: source names mapped to ids,
-      // deduped (distinct names can resolve to the same id; a name can repeat
-      // in the cell). Empty when the row carried no mapped tags.
-      const rowTagIds = resolveRowTagIds({ tagNames: row.tagNames, tagNameToId });
-      const hasImportedTags = rowTagIds.length > 0;
+        // Resolve the imported tags for this row: source names mapped to ids,
+        // deduped (distinct names can resolve to the same id; a name can repeat
+        // in the cell). Empty when the row carried no mapped tags.
+        const rowTagIds = resolveRowTagIds({ tagNames: row.tagNames, tagNameToId });
+        const hasImportedTags = rowTagIds.length > 0;
 
-      const rowAmount = Money.fromCents(row.amount);
+        const rowAmount = Money.fromCents(row.amount);
 
-      // Service-layer createTransaction handles refAmount + currency from the
-      // account, plus Payee extraction + payee_rule via `rawMerchantName` when
-      // the user mapped a Payee column. Without this path the imported row
-      // would arrive at AI with `categorizationMeta = null` and bypass any
-      // Payee defaults the user has already set up.
-      //
-      // Passing `tagIds` makes createTransaction treat the row as having a
-      // caller-decided tag set: it writes exactly those tags and skips its own
-      // payee-default-tags step. To keep imported tags and payee defaults as a
-      // UNION, this path re-applies the payee defaults additively below. When
-      // the row has no imported tags, `tagIds` stays undefined so
-      // createTransaction's built-in payee-default application runs unchanged.
-      const createResult = await createTransaction({
-        userId,
-        amount: rowAmount,
-        commissionRate: Money.zero(),
-        note: row.description,
-        time: new Date(row.date),
-        transactionType: row.transactionType === 'income' ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense,
-        paymentType: PAYMENT_TYPES.creditCard,
-        accountId,
-        categoryId: categoryId || undefined,
-        accountType: ACCOUNT_TYPES.system,
-        transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
-        externalData: {
-          importDetails,
-        },
-        rawMerchantName: row.payeeName || null,
-        payeeId: payeeId || undefined,
-        tagIds: hasImportedTags ? rowTagIds : undefined,
-        categoryIdIsExplicit: Boolean(mappedCategoryId),
-        matchPlanned: plannedMatchAccountIds.has(accountId),
-      });
-      const [transaction] = createResult;
-
-      if (transaction) {
-        // Fold this committed row into the per-account balance tally IMMEDIATELY
-        // after the commit, before any post-commit step that can throw: the
-        // balance hook has already moved `currentBalance`, so a row missing from
-        // the tally would make the reconcile adjustment too large with no desync
-        // error. Signed the way the hook applied it (income adds, expense
-        // subtracts).
-        reconciler.recordRow({
+        // Service-layer createTransaction handles refAmount + currency from the
+        // account, plus Payee extraction + payee_rule via `rawMerchantName` when
+        // the user mapped a Payee column. Without this path the imported row
+        // would arrive at AI with `categorizationMeta = null` and bypass any
+        // Payee defaults the user has already set up.
+        //
+        // Passing `tagIds` makes createTransaction treat the row as having a
+        // caller-decided tag set: it writes exactly those tags and skips its own
+        // payee-default-tags step. To keep imported tags and payee defaults as a
+        // UNION, this path re-applies the payee defaults additively below. When
+        // the row has no imported tags, `tagIds` stays undefined so
+        // createTransaction's built-in payee-default application runs unchanged.
+        const createResult = await createTransaction({
+          userId,
+          amount: rowAmount,
+          commissionRate: Money.zero(),
+          note: row.description,
+          time: new Date(row.date),
+          transactionType: row.transactionType === 'income' ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense,
+          paymentType: PAYMENT_TYPES.creditCard,
           accountId,
-          rowIso: row.date,
-          ...signedRowContribution({
-            isIncome: row.transactionType === 'income',
-            amount: rowAmount,
-          }),
+          categoryId: categoryId || undefined,
+          accountType: ACCOUNT_TYPES.system,
+          transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
+          externalData: {
+            importDetails,
+          },
+          rawMerchantName: row.payeeName || null,
+          payeeId: payeeId || undefined,
+          tagIds: hasImportedTags ? rowTagIds : undefined,
+          categoryIdIsExplicit: Boolean(mappedCategoryId),
+          matchPlanned: plannedMatchAccountIds.has(accountId),
         });
+        if (createResult[0]) extractionTransactionIds.push(createResult[0].id);
+        const [transaction] = createResult;
 
-        // A merged row is an existing planned transaction, not a new one: it
-        // stays out of `newTransactionIds` and keeps the plan's own tag set.
-        if (createResult.mergedIntoPlanned) {
-          mergedCount += 1;
-        } else {
-          newTransactionIds.push(transaction.id);
+        if (transaction) {
+          // Fold this committed row into the per-account balance tally IMMEDIATELY
+          // after the commit, before any post-commit step that can throw: the
+          // balance hook has already moved `currentBalance`, so a row missing from
+          // the tally would make the reconcile adjustment too large with no desync
+          // error. Signed the way the hook applied it (income adds, expense
+          // subtracts).
+          reconciler.recordRow({
+            accountId,
+            rowIso: row.date,
+            ...signedRowContribution({
+              isIncome: row.transactionType === 'income',
+              amount: rowAmount,
+            }),
+          });
 
-          // Union step: when the row supplied its own tags, createTransaction did
-          // not apply the payee's default tags (the explicit tagIds short-circuit
-          // that). Add them here on top of the imported set — `applyPayeeDefaultTags`
-          // is add-only and skips duplicates, so imported tags and payee defaults
-          // coexist. The payeeId was resolved by createTransaction (caller-supplied
-          // or extracted from `rawMerchantName`). The transaction is already
-          // committed, so a failure here loses only the default tags and is
-          // reported as its own error — reporting it as a failed row would invite
-          // a re-import that duplicates the transaction.
-          if (hasImportedTags && transaction.payeeId) {
-            try {
-              await applyPayeeDefaultTags({
-                accountOwnerUserId: userId,
-                transactionId: transaction.id,
-                payeeId: transaction.payeeId,
-              });
-            } catch (err) {
-              logger.error({
-                message: `[CSV import] Failed to apply default payee tags (row ${row.rowIndex})`,
-                error: err as Error,
-              });
-              errors.push({
-                rowIndex: row.rowIndex,
-                error: 'Transaction was imported, but the payee default tags could not be applied',
-              });
+          // A merged row is an existing planned transaction, not a new one: it
+          // stays out of `newTransactionIds` and keeps the plan's own tag set.
+          if (createResult.mergedIntoPlanned) {
+            mergedCount += 1;
+          } else {
+            newTransactionIds.push(transaction.id);
+
+            // Union step: when the row supplied its own tags, createTransaction did
+            // not apply the payee's default tags (the explicit tagIds short-circuit
+            // that). Add them here on top of the imported set — `applyPayeeDefaultTags`
+            // is add-only and skips duplicates, so imported tags and payee defaults
+            // coexist. The payeeId was resolved by createTransaction (caller-supplied
+            // or extracted from `rawMerchantName`). The transaction is already
+            // committed, so a failure here loses only the default tags and is
+            // reported as its own error — reporting it as a failed row would invite
+            // a re-import that duplicates the transaction.
+            if (hasImportedTags && transaction.payeeId) {
+              try {
+                await applyPayeeDefaultTags({
+                  accountOwnerUserId: userId,
+                  transactionId: transaction.id,
+                  payeeId: transaction.payeeId,
+                });
+              } catch (err) {
+                logger.error({
+                  message: `[CSV import] Failed to apply default payee tags (row ${row.rowIndex})`,
+                  error: err as Error,
+                });
+                errors.push({
+                  rowIndex: row.rowIndex,
+                  error: 'Transaction was imported, but the payee default tags could not be applied',
+                });
+              }
             }
           }
+        } else {
+          // createTransaction's read-back is typed non-nullable, so this branch is
+          // unreachable through the current types. If it ever fires, the insert
+          // committed (a throw would have hit the catch below) while the row
+          // escaped `newTransactionIds` AND the balance tally (its `refAmount` is
+          // unknowable without the read-back) — surface it loudly instead of
+          // letting the row silently vanish from the imported count.
+          logger.error({
+            message: `[CSV import] createTransaction returned no transaction for committed row ${row.rowIndex}`,
+          });
+          errors.push({
+            rowIndex: row.rowIndex,
+            error: 'Transaction was created but could not be read back; it is missing from the imported count',
+          });
         }
-      } else {
-        // createTransaction's read-back is typed non-nullable, so this branch is
-        // unreachable through the current types. If it ever fires, the insert
-        // committed (a throw would have hit the catch below) while the row
-        // escaped `newTransactionIds` AND the balance tally (its `refAmount` is
-        // unknowable without the read-back) — surface it loudly instead of
-        // letting the row silently vanish from the imported count.
-        logger.error({
-          message: `[CSV import] createTransaction returned no transaction for committed row ${row.rowIndex}`,
-        });
+
+        // Tick once per committed row, OUTSIDE the correctness path above: a
+        // progress/SSE error must not be recorded as a fake per-row import
+        // error against a row that did commit, nor abort the run.
+        await tick();
+      } catch (error) {
         errors.push({
           rowIndex: row.rowIndex,
-          error: 'Transaction was created but could not be read back; it is missing from the imported count',
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
+    }
 
-      // Tick once per committed row, OUTSIDE the correctness path above: a
-      // progress/SSE error must not be recorded as a fake per-row import
-      // error against a row that did commit, nor abort the run.
-      await tick();
-    } catch (error) {
-      errors.push({
-        rowIndex: row.rowIndex,
-        error: error instanceof Error ? error.message : 'Unknown error',
+    // Back-adjust each pre-existing account (the hook moved `currentBalance` by
+    // every written row; `finalize` removes what must not stay applied — backfill
+    // with recalc ON, everything with it OFF). For accounts this import created,
+    // the user-entered `currentBalance` (when present) is forced as the final
+    // balance — the difference from the imported rows' net is absorbed into
+    // `initialBalance`; a null/absent value leaves the balance at Σ(imported
+    // rows). Either way `finalize` emits their summary entries. A failed balance
+    // write surfaces as an `account-balance-desync` error instead of failing the
+    // import — the rows are already committed.
+    const { accountBalanceChanges, errors: balanceErrors } = await reconciler.finalize({
+      recalculateBalance,
+      createdAccounts,
+      logLabel: 'CSV import',
+    });
+    errors.push(...balanceErrors);
+
+    // Track analytics event
+    if (newTransactionIds.length > 0) {
+      trackImportCompleted({
+        userId,
+        importType: 'csv',
+        transactionsCount: newTransactionIds.length,
       });
     }
+
+    return {
+      imported: newTransactionIds.length,
+      merged: mergedCount,
+      skipped: skipDuplicateIndices.length,
+      skippedUnpriceable: skippedUnpriceableCount,
+      accountsCreated,
+      accountsSkipped: skippedAccountNames.size,
+      categoriesCreated,
+      tagsCreated,
+      payeesCreated,
+      errors,
+      newTransactionIds,
+      batchId,
+      accountBalanceChanges,
+    };
+  } finally {
+    await schedulePayeeExtraction({ userId, transactionIds: extractionTransactionIds });
   }
-
-  // Back-adjust each pre-existing account (the hook moved `currentBalance` by
-  // every written row; `finalize` removes what must not stay applied — backfill
-  // with recalc ON, everything with it OFF). For accounts this import created,
-  // the user-entered `currentBalance` (when present) is forced as the final
-  // balance — the difference from the imported rows' net is absorbed into
-  // `initialBalance`; a null/absent value leaves the balance at Σ(imported
-  // rows). Either way `finalize` emits their summary entries. A failed balance
-  // write surfaces as an `account-balance-desync` error instead of failing the
-  // import — the rows are already committed.
-  const { accountBalanceChanges, errors: balanceErrors } = await reconciler.finalize({
-    recalculateBalance,
-    createdAccounts,
-    logLabel: 'CSV import',
-  });
-  errors.push(...balanceErrors);
-
-  // Track analytics event
-  if (newTransactionIds.length > 0) {
-    trackImportCompleted({
-      userId,
-      importType: 'csv',
-      transactionsCount: newTransactionIds.length,
-    });
-  }
-
-  return {
-    imported: newTransactionIds.length,
-    merged: mergedCount,
-    skipped: skipDuplicateIndices.length,
-    skippedUnpriceable: skippedUnpriceableCount,
-    accountsCreated,
-    accountsSkipped: skippedAccountNames.size,
-    categoriesCreated,
-    tagsCreated,
-    payeesCreated,
-    errors,
-    newTransactionIds,
-    batchId,
-    accountBalanceChanges,
-  };
 }

@@ -20,6 +20,7 @@ import { syncTransactionsForAccount } from '@services/bank-data-providers/connec
 import { SyncStatus, setAccountSyncStatus } from '@services/bank-data-providers/sync/sync-status-tracker';
 import { writeBankBalanceWithHistory } from '@services/bank-data-providers/utils/write-bank-balance-with-history';
 import { withTransaction } from '@services/common/with-transaction';
+import { lockPayeeNamespace } from '@services/payees/payee-namespace';
 
 const PROVIDER_TO_ACCOUNT_TYPE: Record<BANK_PROVIDER_TYPE, ACCOUNT_TYPES> = {
   [BANK_PROVIDER_TYPE.MONOBANK]: ACCOUNT_TYPES.monobank,
@@ -57,6 +58,7 @@ export const linkAccountToBankConnection = withTransaction(
     externalAccountId,
     userId,
   }: LinkAccountToBankConnectionPayload): Promise<LinkResult> => {
+    await lockPayeeNamespace({ userId });
     const account = await getAccountById({ id: accountId, userId });
 
     if (!account) {

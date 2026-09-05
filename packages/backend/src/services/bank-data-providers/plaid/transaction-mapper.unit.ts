@@ -37,6 +37,16 @@ describe('mapPlaidTransaction', () => {
     expect(mapped.sourceData.personalFinanceCategory).toBeUndefined();
   });
 
+  it.each([null, '', '   '])('keeps a missing merchant separate from the description (%s)', (merchantName) => {
+    const mapped = mapPlaidTransaction({
+      transaction: buildTransaction({ merchant_name: merchantName }),
+      accountCurrency: 'USD',
+    });
+
+    expect(mapped.rawMerchantName).toBeNull();
+    expect(mapped.note).toBe('SOURCE DESCRIPTION');
+  });
+
   it('converts negative Plaid amounts to income', () => {
     const mapped = mapPlaidTransaction({
       transaction: buildTransaction({ amount: -100, payment_channel: TransactionPaymentChannelEnum.Other }),

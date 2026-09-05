@@ -17,7 +17,12 @@ interface AIClientBase {
 
 export type AIClientResult =
   | (AIClientBase & { provider: AIKeyProvider })
-  | (AIClientBase & { provider: AI_PROVIDER.custom; customEndpointId: string; usingUserKey: true });
+  | (AIClientBase & {
+      provider: AI_PROVIDER.custom;
+      customEndpointId: string;
+      customEndpointUrl: string;
+      usingUserKey: true;
+    });
 
 /** `baseUrl` is required on the custom arm so a user-endpoint client can never dial the provider's public API. */
 type ProviderModelSpec =
@@ -96,6 +101,7 @@ export async function createAIClient({
       provider: resolution.provider,
       modelId: resolution.modelId,
       customEndpointId: resolution.customEndpointId,
+      customEndpointUrl: resolution.baseUrl,
       usingUserKey: resolution.usingUserKey,
     };
   }

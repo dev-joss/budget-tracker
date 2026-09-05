@@ -1,7 +1,8 @@
 import { type BudgetBakersWalletAccountMapping, TRANSACTION_TRANSFER_NATURE } from '@bt/shared/types';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import * as payeeExtraction from '@services/payees/ai-extraction/schedule';
 import * as helpers from '@tests/helpers';
 import { expectCompleted, waitForBudgetBakersWalletCompletion } from '@tests/helpers/import-export';
 import { asUser, provisionSecondUserWithBaseCurrency, signUpSecondUser } from '@tests/helpers/share';
@@ -68,6 +69,7 @@ describe('Execute Budget Bakers Wallet import endpoint', () => {
    *   Accounts: Monobank UAH, PKO USD, Crypto USD, Wise USD, PKO PLN → 5
    */
   it('imports the multi-currency fixture end-to-end: counts, transfer link, out-of-wallet, datetime', async () => {
+    const scheduleSpy = jest.spyOn(payeeExtraction, 'schedulePayeeExtraction');
     const fileContent = helpers.loadBudgetBakersWalletFixture('multi-currency.csv');
     const { accountMapping } = await buildCreateNewMappingFromFixture({ fileContent });
 
@@ -92,6 +94,16 @@ describe('Execute Budget Bakers Wallet import endpoint', () => {
 
     // --- Transfer pair linked via shared transferId ---
     const transactionsAfter = await helpers.getTransactions({ raw: true });
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionIds: expect.arrayContaining(
+          transactionsAfter
+            .filter((transaction) => transaction.transferNature === TRANSACTION_TRANSFER_NATURE.not_transfer)
+            .map((transaction) => transaction.id),
+        ),
+      }),
+    );
+    scheduleSpy.mockRestore();
 
     // Both fixture transfer pairs (Crypto→Wise same-currency, PKO USD→PKO PLN
     // cross-currency) carry empty notes and land as common_transfer, so 2 pairs

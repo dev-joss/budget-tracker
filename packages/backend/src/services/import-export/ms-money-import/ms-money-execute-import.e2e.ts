@@ -7,8 +7,9 @@ import {
 } from '@bt/shared/types';
 import type { CategoryMappingConfig, MsMoneyAccountMapping } from '@bt/shared/types';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import * as payeeExtraction from '@services/payees/ai-extraction/schedule';
 import {
   MS_MONEY_FIXTURES_MISSING_MESSAGE,
   MS_MONEY_SAMPLE,
@@ -125,6 +126,7 @@ describeWithFixture('Microsoft Money import execution', () => {
    * real transaction service, which lands near that limit on a busy machine.
    */
   it('imports the whole file: counts, created accounts, landed rows, linked transfers', async () => {
+    const scheduleSpy = jest.spyOn(payeeExtraction, 'schedulePayeeExtraction');
     const { account: linked } = await createAudAccount({ name: 'Existing AUD current' });
     const existingCategory = await helpers.addCustomCategory({
       name: 'Existing mortgage category',
@@ -182,6 +184,16 @@ describeWithFixture('Microsoft Money import execution', () => {
     expect(accounts.filter((a) => a.name === ACCOUNT_CURRENT)).toHaveLength(0);
 
     const transactions = await helpers.getTransactions({ limit: 500, raw: true });
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionIds: expect.arrayContaining(
+          transactions
+            .filter((transaction) => transaction.transferNature === TRANSACTION_TRANSFER_NATURE.not_transfer)
+            .map((transaction) => transaction.id),
+        ),
+      }),
+    );
+    scheduleSpy.mockRestore();
     // 67 ordinary + 1 out-of-wallet + 7 transfers × 2 legs.
     expect(transactions).toHaveLength(82);
     // Voided rows are the only ones written at amount 0.

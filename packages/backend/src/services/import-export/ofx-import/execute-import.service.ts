@@ -22,6 +22,7 @@ import { createAccountsIfNeeded } from '@services/import-export/core/resolve/cre
 import { createPayeesIfNeeded } from '@services/import-export/core/resolve/create-payees-if-needed';
 import { excludeSkippedAccounts } from '@services/import-export/core/resolve/exclude-skipped-accounts';
 import { signedRowContribution } from '@services/import-export/core/signed-row-contribution';
+import { schedulePayeeExtraction } from '@services/payees/ai-extraction/schedule';
 import { createTransaction } from '@services/transactions';
 import { selectAccountsWithPlannedRows } from '@services/transactions/planned-matching';
 import { UniqueConstraintError } from 'sequelize';
@@ -171,82 +172,91 @@ export async function executeOfxImport({
   const existingKeys = new Set(existingIdRows.map((tx) => `${tx.accountId}:${tx.originalId}`));
 
   let processedCount = 0;
-  for (const tx of rows) {
-    if (skipSet.has(tx.rowIndex)) {
-      summary.duplicatesSkipped += 1;
-      continue;
-    }
-    const accountId = accountIdByKey.get(tx.sourceAccountKey);
-    if (!accountId) continue;
-    if (tx.sourceTransactionKey && existingKeys.has(`${accountId}:${tx.sourceTransactionKey}`)) {
-      summary.duplicatesSkipped += 1;
+  const extractionTransactionIds: string[] = [];
+  try {
+    for (const tx of rows) {
+      if (skipSet.has(tx.rowIndex)) {
+        summary.duplicatesSkipped += 1;
+        continue;
+      }
+      const accountId = accountIdByKey.get(tx.sourceAccountKey);
+      if (!accountId) continue;
+      if (tx.sourceTransactionKey && existingKeys.has(`${accountId}:${tx.sourceTransactionKey}`)) {
+        summary.duplicatesSkipped += 1;
+        processedCount += 1;
+        if (onProgress) await onProgress(processedCount, rowsToWrite.length);
+        continue;
+      }
+
+      try {
+        const amount = Money.fromDecimal(tx.amount).abs();
+        const result = await createTransaction({
+          userId,
+          accountId,
+          amount,
+          commissionRate: Money.zero(),
+          note: tx.note,
+          time: new Date(tx.date),
+          transactionType: tx.type,
+          paymentType: resolvePaymentType({ transactionType: tx.transactionType }),
+          accountType: ACCOUNT_TYPES.system,
+          transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
+          payeeId: tx.payeeName ? payeeNameToId.get(tx.payeeName.trim()) : undefined,
+          rawMerchantName: tx.payeeName,
+          originalId: tx.sourceTransactionKey,
+          externalData: {
+            importDetails,
+            ofx: {
+              transactionType: tx.transactionType,
+              checkNumber: tx.checkNumber,
+              referenceNumber: tx.referenceNumber,
+            },
+          },
+          matchPlanned: plannedAccountIds.has(accountId),
+        });
+        if (result[0]) extractionTransactionIds.push(result[0].id);
+
+        reconciler.recordRow({
+          accountId,
+          rowIso: tx.date,
+          ...signedRowContribution({ isIncome: tx.type === TRANSACTION_TYPES.income, amount }),
+        });
+        if (result.mergedIntoPlanned) summary.merged += 1;
+        else {
+          summary.transactionsImported += 1;
+          summary.newTransactionIds.push(result[0].id);
+        }
+        if (tx.sourceTransactionKey) existingKeys.add(`${accountId}:${tx.sourceTransactionKey}`);
+      } catch (error) {
+        if (error instanceof UniqueConstraintError && tx.sourceTransactionKey) {
+          summary.duplicatesSkipped += 1;
+        } else {
+          logger.error({ message: `[OFX import] Failed row ${tx.rowIndex}`, error: error as Error });
+          summary.errors.push({
+            rowIndex: tx.rowIndex,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
       processedCount += 1;
       if (onProgress) await onProgress(processedCount, rowsToWrite.length);
-      continue;
     }
+
+    const { accountBalanceChanges, errors } = await reconciler.finalize({
+      recalculateBalance,
+      createdAccounts,
+      logLabel: 'OFX import',
+    });
+    summary.accountBalanceChanges.push(...accountBalanceChanges);
+    summary.errors.push(...errors);
 
     try {
-      const amount = Money.fromDecimal(tx.amount).abs();
-      const result = await createTransaction({
-        userId,
-        accountId,
-        amount,
-        commissionRate: Money.zero(),
-        note: tx.note,
-        time: new Date(tx.date),
-        transactionType: tx.type,
-        paymentType: resolvePaymentType({ transactionType: tx.transactionType }),
-        accountType: ACCOUNT_TYPES.system,
-        transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
-        payeeId: tx.payeeName ? payeeNameToId.get(tx.payeeName.trim()) : undefined,
-        rawMerchantName: tx.payeeName,
-        originalId: tx.sourceTransactionKey,
-        externalData: {
-          importDetails,
-          ofx: {
-            transactionType: tx.transactionType,
-            checkNumber: tx.checkNumber,
-            referenceNumber: tx.referenceNumber,
-          },
-        },
-        matchPlanned: plannedAccountIds.has(accountId),
-      });
-
-      reconciler.recordRow({
-        accountId,
-        rowIso: tx.date,
-        ...signedRowContribution({ isIncome: tx.type === TRANSACTION_TYPES.income, amount }),
-      });
-      if (result.mergedIntoPlanned) summary.merged += 1;
-      else {
-        summary.transactionsImported += 1;
-        summary.newTransactionIds.push(result[0].id);
-      }
-      if (tx.sourceTransactionKey) existingKeys.add(`${accountId}:${tx.sourceTransactionKey}`);
+      await deleteOfxUpload({ userId, uploadId });
     } catch (error) {
-      if (error instanceof UniqueConstraintError && tx.sourceTransactionKey) {
-        summary.duplicatesSkipped += 1;
-      } else {
-        logger.error({ message: `[OFX import] Failed row ${tx.rowIndex}`, error: error as Error });
-        summary.errors.push({ rowIndex: tx.rowIndex, error: error instanceof Error ? error.message : 'Unknown error' });
-      }
+      logger.error({ message: '[OFX import] Failed to delete cached upload', error: error as Error });
     }
-    processedCount += 1;
-    if (onProgress) await onProgress(processedCount, rowsToWrite.length);
+    return summary;
+  } finally {
+    await schedulePayeeExtraction({ userId, transactionIds: extractionTransactionIds });
   }
-
-  const { accountBalanceChanges, errors } = await reconciler.finalize({
-    recalculateBalance,
-    createdAccounts,
-    logLabel: 'OFX import',
-  });
-  summary.accountBalanceChanges.push(...accountBalanceChanges);
-  summary.errors.push(...errors);
-
-  try {
-    await deleteOfxUpload({ userId, uploadId });
-  } catch (error) {
-    logger.error({ message: '[OFX import] Failed to delete cached upload', error: error as Error });
-  }
-  return summary;
 }

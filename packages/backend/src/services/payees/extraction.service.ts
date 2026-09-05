@@ -10,7 +10,7 @@ import { insertOrAdopt } from '../common/run-in-savepoint';
 import { withTransaction } from '../common/with-transaction';
 import { FUZZY_MATCH_THRESHOLD, buildHaystack, fuzzyFindBestMatch } from './fuzzy-matcher';
 import { normalizePayeeName } from './normalize-name';
-import { ensureAliasExists, resolveNormalizedName } from './payee-namespace';
+import { ensureAliasExists, lockPayeeNamespace, resolveNormalizedName } from './payee-namespace';
 
 interface ExtractionInput {
   userId: number;
@@ -92,7 +92,7 @@ async function collectPriorUnmatched({
   normalizedQuery: string;
 }): Promise<string[]> {
   const candidates = await findTransactions({
-    access: { creator: userId },
+    access: { accountOwner: userId },
     planned: 'exclude',
     balanceAdjustments: 'include',
     completeness: { cap: { limit: PRIOR_UNMATCHED_SCAN_LIMIT, onTruncated: 'log' } },
@@ -139,6 +139,8 @@ export const resolvePayeeForRawMerchant = withTransaction(
     const normalizedQuery = normalizePayeeName({ raw: trimmed });
     if (!normalizedQuery) return noMatch;
 
+    await lockPayeeNamespace({ userId });
+
     // Step 1: exact match on canonical name or alias. Either way no alias
     // write is needed – canonical names are self-evident and alias hits
     // already have the row.
@@ -161,7 +163,6 @@ export const resolvePayeeForRawMerchant = withTransaction(
         logger.info('[Payee extraction] fuzzy link', {
           userId,
           payeeId: fuzzy.payeeId,
-          query: trimmed,
           score: fuzzy.score,
           threshold: FUZZY_MATCH_THRESHOLD,
           decision: 'link',
@@ -176,7 +177,6 @@ export const resolvePayeeForRawMerchant = withTransaction(
 
       logger.info('[Payee extraction] no fuzzy match', {
         userId,
-        query: trimmed,
         threshold: FUZZY_MATCH_THRESHOLD,
         decision: 'reject',
       });
@@ -197,7 +197,6 @@ export const resolvePayeeForRawMerchant = withTransaction(
     if (isIgnored) {
       logger.info('[Payee extraction] suppressed by ignored-names blocklist', {
         userId,
-        normalizedQuery,
       });
       return noMatch;
     }
@@ -225,18 +224,17 @@ export const resolvePayeeForRawMerchant = withTransaction(
       });
       // A plan must never carry a payee it did not name itself, so the write states it too —
       // a row can turn into a plan between the scan above and this update.
-      await updateTransactions({
+      const [backfilledTxCount] = await updateTransactions({
         values: { payeeId: payee.id },
         planned: 'exclude',
-        access: { creator: userId },
+        access: { accountOwner: userId },
         balanceAdjustments: 'include',
-        where: { id: { [Op.in]: priorIds } },
+        where: { id: { [Op.in]: priorIds }, payeeId: null, payeeLocked: false },
       });
       logger.info('[Payee extraction] promoted from occurrences', {
         userId,
         payeeId: payee.id,
-        normalizedQuery,
-        backfilledTxCount: priorIds.length,
+        backfilledTxCount,
       });
       // This promotion always runs inside the sync/create-transaction
       // transaction (this resolver is `withTransaction`-wrapped and its callers

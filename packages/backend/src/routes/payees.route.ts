@@ -15,12 +15,33 @@ import {
   resetLogo,
   updatePayee,
 } from '@controllers/payees';
+import { extractionCandidates, extractionStatus, extractionTrigger } from '@controllers/payees/extraction';
 import { authenticateSession } from '@middlewares/better-auth';
 import { checkBaseCurrencyLock } from '@middlewares/check-base-currency-lock';
 import { validateEndpoint } from '@middlewares/validations';
 import { Router } from 'express';
 
 const router = Router({});
+
+router.get(
+  '/extraction/candidates',
+  authenticateSession,
+  validateEndpoint(extractionCandidates.schema),
+  extractionCandidates.handler,
+);
+router.post(
+  '/extraction/trigger',
+  authenticateSession,
+  checkBaseCurrencyLock,
+  validateEndpoint(extractionTrigger.schema),
+  extractionTrigger.handler,
+);
+router.get(
+  '/extraction/status',
+  authenticateSession,
+  validateEndpoint(extractionStatus.schema),
+  extractionStatus.handler,
+);
 
 router.get('/', authenticateSession, validateEndpoint(listPayees.schema), listPayees.handler);
 router.post('/', authenticateSession, checkBaseCurrencyLock, validateEndpoint(createPayee.schema), createPayee.handler);

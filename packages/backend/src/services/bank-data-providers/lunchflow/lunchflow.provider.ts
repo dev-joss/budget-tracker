@@ -334,6 +334,7 @@ export class LunchFlowProvider extends BaseBankDataProvider {
         const defaultCategoryId = await getUserDefaultCategory({ id: connection.userId });
         const createdTransactionIds: string[] = [];
         let mergedIntoPlannedCount = 0;
+        const payeeExtractionTransactionIds: string[] = [];
         const checkpoint = this.createBaseCurrencyLockCheckpoint({ userId });
 
         // One probe per run instead of one per row. Anchorless runs are backfills
@@ -412,6 +413,7 @@ export class LunchFlowProvider extends BaseBankDataProvider {
           // post-sync listeners on the emitted ids would overwrite.
           if (createResult.mergedIntoPlanned) {
             mergedIntoPlannedCount += 1;
+            payeeExtractionTransactionIds.push(createResult[0].id);
           } else {
             createdTransactionIds.push(createResult[0].id);
           }
@@ -439,7 +441,7 @@ export class LunchFlowProvider extends BaseBankDataProvider {
           logger.info(`[LunchFlow] Failed to update balance for account ${account.id}: ${errorMsg}`);
         }
 
-        return { transactionIds: createdTransactionIds };
+        return { transactionIds: createdTransactionIds, payeeExtractionTransactionIds };
       },
     });
   }

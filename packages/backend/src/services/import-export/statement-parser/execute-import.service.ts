@@ -18,6 +18,7 @@ import { trackImportCompleted } from '@js/utils/posthog';
 import * as Accounts from '@models/accounts.model';
 import * as Users from '@models/users.model';
 import { CATEGORIZATION_SCOPE, queueCategorizationJob } from '@services/ai-categorization';
+import { schedulePayeeExtraction } from '@services/payees/ai-extraction/schedule';
 import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
 import { v4 as uuidv4 } from 'uuid';
@@ -87,124 +88,130 @@ async function executeImportImpl({
   const newTransactionIds: string[] = [];
   let mergedCount = 0;
 
-  for (let i = 0; i < transactions.length; i++) {
-    // Skip if in skip list
-    if (skipSet.has(i)) {
-      continue;
+  const extractionTransactionIds: string[] = [];
+  try {
+    for (let i = 0; i < transactions.length; i++) {
+      // Skip if in skip list
+      if (skipSet.has(i)) {
+        continue;
+      }
+
+      const tx = transactions[i]!;
+
+      try {
+        // Parse the date - handle both YYYY-MM-DD and YYYY-MM-DD HH:MM:SS formats
+        const txDate = new Date(tx.date.replace(' ', 'T'));
+        if (isNaN(txDate.getTime())) {
+          errors.push({
+            transactionIndex: i,
+            error: `Invalid date format: "${tx.date}"`,
+          });
+          continue;
+        }
+
+        // Validate: no future dates (with 1-day tolerance for timezone differences)
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(23, 59, 59, 999);
+        if (txDate > tomorrow) {
+          errors.push({
+            transactionIndex: i,
+            error: `Transaction date "${tx.date}" is in the future`,
+          });
+          continue;
+        }
+
+        // Validate: amount must be positive (type determines income/expense direction)
+        if (tx.amount <= 0) {
+          errors.push({
+            transactionIndex: i,
+            error: `Amount must be positive, got: ${tx.amount}`,
+          });
+          continue;
+        }
+
+        // Validate: amount should not exceed reasonable threshold (1 billion)
+        const MAX_AMOUNT = 1_000_000_000;
+        if (tx.amount > MAX_AMOUNT) {
+          errors.push({
+            transactionIndex: i,
+            error: `Amount ${tx.amount} exceeds maximum allowed value of ${MAX_AMOUNT}`,
+          });
+          continue;
+        }
+
+        // Note: tx.amount is in decimal format from AI extraction (e.g., 35 means 35.00)
+        const amount = Money.fromDecimal(tx.amount);
+
+        const importDetails: TransactionImportDetails = {
+          batchId,
+          importedAt: importedAt.toISOString(),
+          source: ImportSource.statementParser,
+        };
+
+        // Service-layer createTransaction handles refAmount, payee extraction
+        // (via `rawMerchantName`), and inline `payee_rule` auto-categorization.
+        // Without this path the imported row would arrive at AI with
+        // `categorizationMeta = null` and bypass any Payee defaults the user has
+        // already set up.
+        const createResult = await createTransaction({
+          userId,
+          amount,
+          commissionRate: Money.zero(),
+          note: tx.description,
+          time: txDate,
+          transactionType: tx.type === 'income' ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense,
+          paymentType: PAYMENT_TYPES.creditCard,
+          accountId,
+          categoryId: defaultCategoryId,
+          accountType: ACCOUNT_TYPES.system,
+          transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
+          externalData: {
+            importDetails,
+          },
+          rawMerchantName: tx.merchant?.trim() || null,
+          matchPlanned,
+        });
+        if (createResult[0]) extractionTransactionIds.push(createResult[0].id);
+        const [transaction] = createResult;
+
+        // A merged row is an existing planned transaction the user already
+        // categorized, so it stays out of the ids fed to AI categorization below.
+        if (createResult.mergedIntoPlanned) {
+          mergedCount += 1;
+        } else if (transaction) {
+          newTransactionIds.push(transaction.id);
+        }
+      } catch (error) {
+        errors.push({
+          transactionIndex: i,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     }
 
-    const tx = transactions[i]!;
-
-    try {
-      // Parse the date - handle both YYYY-MM-DD and YYYY-MM-DD HH:MM:SS formats
-      const txDate = new Date(tx.date.replace(' ', 'T'));
-      if (isNaN(txDate.getTime())) {
-        errors.push({
-          transactionIndex: i,
-          error: `Invalid date format: "${tx.date}"`,
-        });
-        continue;
-      }
-
-      // Validate: no future dates (with 1-day tolerance for timezone differences)
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(23, 59, 59, 999);
-      if (txDate > tomorrow) {
-        errors.push({
-          transactionIndex: i,
-          error: `Transaction date "${tx.date}" is in the future`,
-        });
-        continue;
-      }
-
-      // Validate: amount must be positive (type determines income/expense direction)
-      if (tx.amount <= 0) {
-        errors.push({
-          transactionIndex: i,
-          error: `Amount must be positive, got: ${tx.amount}`,
-        });
-        continue;
-      }
-
-      // Validate: amount should not exceed reasonable threshold (1 billion)
-      const MAX_AMOUNT = 1_000_000_000;
-      if (tx.amount > MAX_AMOUNT) {
-        errors.push({
-          transactionIndex: i,
-          error: `Amount ${tx.amount} exceeds maximum allowed value of ${MAX_AMOUNT}`,
-        });
-        continue;
-      }
-
-      // Note: tx.amount is in decimal format from AI extraction (e.g., 35 means 35.00)
-      const amount = Money.fromDecimal(tx.amount);
-
-      const importDetails: TransactionImportDetails = {
-        batchId,
-        importedAt: importedAt.toISOString(),
-        source: ImportSource.statementParser,
-      };
-
-      // Service-layer createTransaction handles refAmount, payee extraction
-      // (via `rawMerchantName`), and inline `payee_rule` auto-categorization.
-      // Without this path the imported row would arrive at AI with
-      // `categorizationMeta = null` and bypass any Payee defaults the user has
-      // already set up.
-      const createResult = await createTransaction({
+    // Track analytics event
+    if (newTransactionIds.length > 0) {
+      trackImportCompleted({
         userId,
-        amount,
-        commissionRate: Money.zero(),
-        note: tx.description,
-        time: txDate,
-        transactionType: tx.type === 'income' ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense,
-        paymentType: PAYMENT_TYPES.creditCard,
-        accountId,
-        categoryId: defaultCategoryId,
-        accountType: ACCOUNT_TYPES.system,
-        transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
-        externalData: {
-          importDetails,
-        },
-        rawMerchantName: tx.merchant?.trim() || null,
-        matchPlanned,
-      });
-      const [transaction] = createResult;
-
-      // A merged row is an existing planned transaction the user already
-      // categorized, so it stays out of the ids fed to AI categorization below.
-      if (createResult.mergedIntoPlanned) {
-        mergedCount += 1;
-      } else if (transaction) {
-        newTransactionIds.push(transaction.id);
-      }
-    } catch (error) {
-      errors.push({
-        transactionIndex: i,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        importType: 'statement_parser',
+        transactionsCount: newTransactionIds.length,
       });
     }
-  }
 
-  // Track analytics event
-  if (newTransactionIds.length > 0) {
-    trackImportCompleted({
-      userId,
-      importType: 'statement_parser',
-      transactionsCount: newTransactionIds.length,
-    });
+    return {
+      summary: {
+        imported: newTransactionIds.length,
+        merged: mergedCount,
+        skipped: skipIndices.length,
+        errors,
+      },
+      newTransactionIds,
+      batchId,
+    };
+  } finally {
+    await schedulePayeeExtraction({ userId, transactionIds: extractionTransactionIds });
   }
-
-  return {
-    summary: {
-      imported: newTransactionIds.length,
-      merged: mergedCount,
-      skipped: skipIndices.length,
-      errors,
-    },
-    newTransactionIds,
-    batchId,
-  };
 }
 
 /**

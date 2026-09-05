@@ -17,7 +17,11 @@ jest.mock('@models/payee-aliases.model', () => ({ __esModule: true, default: {} 
 // The follow-up writes each linked row triggers are covered by their own suites.
 jest.mock('./apply-categorization', () => ({ __esModule: true, applyPayeeCategorization: jest.fn() }));
 jest.mock('./apply-default-tags', () => ({ __esModule: true, applyPayeeDefaultTags: jest.fn() }));
-jest.mock('./payee-namespace', () => ({ __esModule: true, ensureAliasExists: jest.fn() }));
+jest.mock('./payee-namespace', () => ({
+  __esModule: true,
+  ensureAliasExists: jest.fn(),
+  lockPayeeNamespace: jest.fn(),
+}));
 // The real wrapper opens a DB transaction; running the body straight through is
 // what a committed run looks like to the caller.
 jest.mock('../common/with-transaction', () => ({
@@ -33,7 +37,10 @@ jest.mock('@js/utils/logger', () => ({
 import Payees from '@models/payees.model';
 import { findTransactions, updateTransactions } from '@models/transactions-query';
 
+import { applyPayeeCategorization } from './apply-categorization';
+import { applyPayeeDefaultTags } from './apply-default-tags';
 import { runNoteFuzzyBackfill } from './note-fuzzy-backfill';
+import { ensureAliasExists } from './payee-namespace';
 /* eslint-enable import/first */
 
 const findTransactionsMock = jest.mocked(findTransactions);
@@ -111,9 +118,25 @@ describe('runNoteFuzzyBackfill payee link write', () => {
     expect(updateTransactionsMock.mock.calls[0]![0]).toEqual({
       values: { payeeId: PAYEE_ID },
       planned: 'exclude',
-      access: 'unscoped-internal',
+      access: { accountOwner: USER_ID },
       balanceAdjustments: 'include',
       where: { id: 'tx-1', payeeId: null, payeeLocked: false },
+    });
+  });
+
+  it('does not add aliases or rules when the guarded update changes no rows', async () => {
+    seed({ candidates: [{ id: 'tx-1', note: 'Amazon' }] });
+    updateTransactionsMock.mockResolvedValue([0] as never);
+
+    const result = await runNoteFuzzyBackfill({ userId: USER_ID, transactionIds: ['tx-1'] });
+
+    expect(result).toEqual({ scanned: 1, linked: 0 });
+    expect(ensureAliasExists).not.toHaveBeenCalled();
+    expect(applyPayeeCategorization).not.toHaveBeenCalled();
+    expect(applyPayeeDefaultTags).not.toHaveBeenCalled();
+    expect(findTransactionsMock.mock.calls[1]![0]).toMatchObject({
+      lock: true,
+      access: { accountOwner: USER_ID },
     });
   });
 

@@ -26,6 +26,11 @@ const DOCUMENT_EXTRACTION_MODELS: AI_MODEL_ID[] = [
  * Models are listed in order of recommendation (first = most recommended).
  */
 export const FEATURE_RECOMMENDATIONS: Record<AI_FEATURE, AI_MODEL_ID[]> = {
+  [AI_FEATURE.payeeExtraction]: [
+    AI_MODEL_ID['google/gemma-4-31b-it'],
+    AI_MODEL_ID['openrouter/openai/gpt-oss-20b'],
+    AI_MODEL_ID['openai/gpt-5.4-nano'],
+  ],
   [AI_FEATURE.categorization]: [
     AI_MODEL_ID['google/gemma-4-31b-it'], // Free on the Gemini API, accurate enough for short merchant names
     AI_MODEL_ID['google/gemini-3.5-flash-lite'], // Cheapest Gemini with a free tier
@@ -43,6 +48,7 @@ export const FEATURE_RECOMMENDATIONS: Record<AI_FEATURE, AI_MODEL_ID[]> = {
  * These are used as server fallback.
  */
 export const FEATURE_DEFAULTS: Record<AI_FEATURE, AI_MODEL_ID> = {
+  [AI_FEATURE.payeeExtraction]: AI_MODEL_ID['google/gemma-4-31b-it'],
   [AI_FEATURE.categorization]: AI_MODEL_ID['google/gemma-4-31b-it'],
   [AI_FEATURE.statementParsing]: AI_MODEL_ID['google/gemini-3.6-flash'],
   [AI_FEATURE.investmentTransactionsParsing]: AI_MODEL_ID['google/gemini-3.6-flash'],

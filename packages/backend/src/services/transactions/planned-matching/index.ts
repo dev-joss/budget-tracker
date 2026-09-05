@@ -15,12 +15,14 @@ export { accountHasPlannedRows, selectAccountsWithPlannedRows } from './find-pla
  * caller creates the bank row normally and nothing is lost.
  */
 export const tryMergeIntoPlanned = async ({
+  accountOwnerUserId,
   accountId,
   amount,
   transactionType,
   currencyCode,
   incoming,
 }: {
+  accountOwnerUserId: number;
   accountId: string;
   amount: Money;
   transactionType: TRANSACTION_TYPES;
@@ -41,7 +43,7 @@ export const tryMergeIntoPlanned = async ({
     // The savepoint is what makes the fallback safe: the merge flips the plan to real partway
     // through, and without a scoped rollback a later throw would leave that flip in place while
     // the caller adds a second row for the same charge.
-    const merged = await runInSavepoint(() => mergeIntoPlanned({ planned, incoming }));
+    const merged = await runInSavepoint(() => mergeIntoPlanned({ planned, incoming, accountOwnerUserId }));
 
     logger.info('Merged an incoming transaction into a planned one', {
       transactionId: merged.id,

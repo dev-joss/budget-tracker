@@ -10,7 +10,7 @@ import { applyPayeeCategorization } from './apply-categorization';
 import { applyPayeeDefaultTags } from './apply-default-tags';
 import { buildFuzzyIndex, buildHaystack } from './fuzzy-matcher';
 import { normalizePayeeName } from './normalize-name';
-import { ensureAliasExists } from './payee-namespace';
+import { ensureAliasExists, lockPayeeNamespace } from './payee-namespace';
 
 interface NoteFuzzyBackfillInput {
   /**
@@ -59,6 +59,8 @@ export const runNoteFuzzyBackfill = withTransaction(
   async ({ userId, transactionIds }: NoteFuzzyBackfillInput): Promise<NoteFuzzyBackfillResult> => {
     if (transactionIds.length === 0) return { scanned: 0, linked: 0 };
 
+    await lockPayeeNamespace({ userId });
+
     const userPayees = await Payees.findAll({
       where: { userId },
       include: [{ model: PayeeAliases, as: 'aliases' }],
@@ -103,7 +105,16 @@ export const runNoteFuzzyBackfill = withTransaction(
       // the remaining batch — this pass is best-effort enrichment, not a
       // critical write path.
       try {
-        const raw = tx.note?.trim();
+        const [current] = await findTransactions({
+          planned: 'exclude',
+          access: { accountOwner: userId },
+          balanceAdjustments: 'include',
+          completeness: 'all',
+          where: { id: tx.id, payeeId: null, payeeLocked: false },
+          lock: true,
+        });
+        if (!current) continue;
+        const raw = current.note?.trim();
         if (!raw) continue;
 
         const match = index.search({ query: raw });
@@ -112,17 +123,17 @@ export const runNoteFuzzyBackfill = withTransaction(
         const normalized = normalizePayeeName({ raw });
         if (!normalized) continue;
 
-        // Update by id only — auth was established at the candidate fetch via
-        // the Accounts JOIN. `payeeId IS NULL AND payeeLocked = false` stays in
-        // the WHERE as the idempotency guard against a concurrent sync linking
-        // the same row first.
-        await updateTransactions({
+        // The guarded write rechecks ownership and manual payee decisions.
+        const [affectedCount] = await updateTransactions({
           values: { payeeId: match.payeeId },
           planned: 'exclude',
-          access: 'unscoped-internal',
+          access: { accountOwner: userId },
           balanceAdjustments: 'include',
           where: { id: tx.id, payeeId: null, payeeLocked: false },
         });
+
+        if (affectedCount === 0) continue;
+        linked += affectedCount;
 
         await ensureAliasExists({
           payeeId: match.payeeId,
@@ -139,6 +150,7 @@ export const runNoteFuzzyBackfill = withTransaction(
           accountOwnerUserId: userId,
           transactionId: tx.id,
           payeeId: match.payeeId,
+          lateLink: true,
         });
 
         // Same rule as the inline path: a payee link earns the payee's
@@ -154,25 +166,18 @@ export const runNoteFuzzyBackfill = withTransaction(
             transactionId: tx.id,
             payeeId: match.payeeId,
           });
-        } catch (error) {
-          logger.error({
-            message: `${LOG_PREFIX} default-tag application failed for linked row; continuing`,
-            error: error as Error,
-          });
+        } catch {
+          logger.warn(`${LOG_PREFIX} default-tag application failed for linked row; continuing`);
         }
 
-        linked += 1;
         logger.info(`${LOG_PREFIX} fuzzy link via note`, {
           userId,
           transactionId: tx.id,
           payeeId: match.payeeId,
           score: match.score,
         });
-      } catch (error) {
-        logger.error({
-          message: `${LOG_PREFIX} per-transaction link failed; continuing`,
-          error: error as Error,
-        });
+      } catch {
+        logger.warn(`${LOG_PREFIX} per-transaction link failed; continuing`);
       }
     }
 

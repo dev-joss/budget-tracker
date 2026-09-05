@@ -33,9 +33,11 @@ const joinNotes = ({
  * write must stay on this instance rather than going through any id-based helper.
  */
 export const mergeIntoPlanned = async ({
+  accountOwnerUserId,
   planned,
   incoming,
 }: {
+  accountOwnerUserId: number;
   planned: Transactions;
   incoming: IncomingTransactionData;
 }): Promise<Transactions> => {
@@ -63,13 +65,12 @@ export const mergeIntoPlanned = async ({
       });
 
   // A locked null payee is a deliberate "no payee" choice; the bank merchant must not override it.
-  // Merged rows never reach the post-sync backfill listener, so this is their only chance at a link.
   const payeeId =
     planned.payeeId ??
     (planned.payeeLocked
       ? null
       : await resolvePayeeForIncomingRow({
-          ownerUserId: planned.userId,
+          ownerUserId: accountOwnerUserId,
           rawMerchantName: incoming.rawMerchantName,
           note: incoming.note,
           failureLogMessage: 'Failed to resolve Payee while merging into a planned transaction; leaving it unlinked',

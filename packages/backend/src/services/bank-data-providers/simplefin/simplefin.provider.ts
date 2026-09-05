@@ -442,7 +442,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
           });
         }
 
-        const createdIds = await this.persistAccountTransactions({
+        const { createdIds, payeeExtractionTransactionIds } = await this.persistAccountTransactions({
           connection,
           account,
           transactions: bucket.transactions,
@@ -461,6 +461,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
           userId: connection.userId,
           accountId: account.id,
           transactionIds: createdIds,
+          payeeExtractionTransactionIds,
         });
         logger.info(`[SimpleFIN] Sync: ${createdIds.length} transactions created for account ${account.id}`);
 
@@ -639,7 +640,11 @@ export class SimplefinProvider extends BaseBankDataProvider {
           `[SimpleFIN] ${logLabel}: ${ingested.createdIds.length} transactions created for account ${account.id}`,
         );
 
-        return { transactionIds: ingested.createdIds, fetchedCount: ingested.fetchedCount };
+        return {
+          transactionIds: ingested.createdIds,
+          fetchedCount: ingested.fetchedCount,
+          payeeExtractionTransactionIds: ingested.payeeExtractionTransactionIds,
+        };
       },
     });
 
@@ -782,7 +787,12 @@ export class SimplefinProvider extends BaseBankDataProvider {
     from: Date;
     to: Date;
     matchPlanned?: boolean;
-  }): Promise<{ createdIds: string[]; balance: string | null; fetchedCount: number }> {
+  }): Promise<{
+    createdIds: string[];
+    payeeExtractionTransactionIds: string[];
+    balance: string | null;
+    fetchedCount: number;
+  }> {
     const fetched = await this.fetchAccountTransactions({
       connectionId,
       apiClient,
@@ -791,14 +801,19 @@ export class SimplefinProvider extends BaseBankDataProvider {
       to,
     });
 
-    const createdIds = await this.persistAccountTransactions({
+    const { createdIds, payeeExtractionTransactionIds } = await this.persistAccountTransactions({
       connection,
       account,
       transactions: fetched.transactions,
       matchPlanned,
     });
 
-    return { createdIds, balance: fetched.balance, fetchedCount: fetched.transactions.length };
+    return {
+      createdIds,
+      payeeExtractionTransactionIds,
+      balance: fetched.balance,
+      fetchedCount: fetched.transactions.length,
+    };
   }
 
   /**
@@ -819,12 +834,13 @@ export class SimplefinProvider extends BaseBankDataProvider {
     account: Accounts;
     transactions: SimplefinTransaction[];
     matchPlanned?: boolean;
-  }): Promise<string[]> {
+  }): Promise<{ createdIds: string[]; payeeExtractionTransactionIds: string[] }> {
     // Oldest first so balance-history ordering is natural.
     const transactions = rawTransactions.toSorted((a, b) => a.posted - b.posted);
     const defaultCategoryId = await getUserDefaultCategory({ id: connection.userId });
     const createdIds: string[] = [];
     let mergedIntoPlannedCount = 0;
+    const payeeExtractionTransactionIds: string[] = [];
     const checkpoint = this.createBaseCurrencyLockCheckpoint({ userId: connection.userId });
 
     // One probe per account instead of one per row.
@@ -894,6 +910,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
       // post-sync listeners on the emitted ids would overwrite.
       if (createResult.mergedIntoPlanned) {
         mergedIntoPlannedCount += 1;
+        payeeExtractionTransactionIds.push(createResult[0].id);
       } else {
         createdIds.push(createResult[0].id);
       }
@@ -908,7 +925,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
       });
     }
 
-    return createdIds;
+    return { createdIds, payeeExtractionTransactionIds };
   }
 
   /**

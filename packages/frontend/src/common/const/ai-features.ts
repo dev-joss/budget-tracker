@@ -15,6 +15,10 @@ interface AIFeatureDisplayInfoKeys {
  * Use with t() from vue-i18n: t(info.nameKey), t(info.descriptionKey)
  */
 const AI_FEATURE_DISPLAY_INFO: Record<AI_FEATURE, AIFeatureDisplayInfoKeys> = {
+  [AI_FEATURE.payeeExtraction]: {
+    nameKey: 'common.aiFeatures.payeeExtraction.name',
+    descriptionKey: 'common.aiFeatures.payeeExtraction.description',
+  },
   [AI_FEATURE.categorization]: {
     nameKey: 'common.aiFeatures.categorization.name',
     descriptionKey: 'common.aiFeatures.categorization.description',

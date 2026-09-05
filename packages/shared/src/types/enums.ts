@@ -368,6 +368,7 @@ export enum AI_PROVIDER {
  */
 export enum AI_FEATURE {
   categorization = 'categorization',
+  payeeExtraction = 'payee-extraction',
   statementParsing = 'statement_parsing',
   investmentTransactionsParsing = 'investment_transactions_parsing',
   // Future features:
