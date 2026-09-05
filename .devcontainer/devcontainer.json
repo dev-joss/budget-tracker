@@ -1,0 +1,16 @@
+{
+  "name": "Budget Tracker",
+  "dockerComposeFile": ["compose.yaml", "compose.local.json"],
+  "service": "workspace",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "remoteUser": "node",
+  "remoteEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096"
+  },
+  "initializeCommand": ["node", ".devcontainer/initialize.mjs"],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1.10.0": {}
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "shutdownAction": "stopCompose"
+}
