@@ -1,6 +1,6 @@
 # Local backend e2e performance plan
 
-Status: T0 and T1 complete; T1 accepted after the full-suite failure investigation; T2–T8 remain pending.
+Status: T0–T2 complete; T3–T8 remain pending.
 Evidence date: 2026-09-05 UTC.
 
 ## Objective and scope
@@ -85,7 +85,7 @@ Impact ranking and implementation order differ. Persistent cache work comes earl
 | --- | --- | --- | --- |
 | T0 | Establish comparable local baseline | Existing evidence | Complete |
 | T1 | Persist local services and migrated template | T0 | Complete; full suite passed |
-| T2 | Persist Jest transform cache | T0; integrate with T1 | Pending |
+| T2 | Persist Jest transform cache | T0; integrate with T1 | Complete; validated and measured |
 | T3 | Reduce eager imports; audit contexts and resource lifetime | T0 | Pending |
 | T4 | Reuse application initialization across files | T3 | Pending |
 | T5 | Reduce measured fixture/reset costs | T0; benchmark current retained design | Pending |
@@ -236,3 +236,24 @@ Preserve raw results. Do not overwrite earlier captures or silently change the b
 - Final checks passed: 3 cleanup unit tests, backend lint, changed-file formatting, whitespace check, and typecheck in the final lockfile-built container. Host typecheck still lacks the already documented installed `ofx-js`; a test header typing error found during implementation was corrected. Lint has existing warnings outside this task.
 - Required final `npm run test:e2e` passed on its first run after the fixes: **231 suites passed, 2 skipped; 2,632 tests passed, 52 skipped, 7 TODOs; exit 0; Jest time 268.564 s**. Default four-worker/1 GB recycling settings were retained. No performance comparison was repeated.
 - **T1 acceptance is complete.** The prior service/template checks plus this full-suite result satisfy T1 validation. Jest still reports forced worker exit; this is recorded, and no full natural-shutdown claim is made. T2–T8 remain pending; no work on them was started.
+
+### 2026-09-05 UTC — T2 implemented; validation deferred
+
+- Source: `788beadd` plus T2 changes. The user authorized design and implementation while another worktree runs E2E tests, and explicitly prohibited tests until further authorization.
+- Added a worktree-scoped Compose cache volume, conditional E2E cache configuration, a compatibility-key helper, and six focused unit cases. Updated the reset message and runner documentation. No dependencies or CI changes. No commits.
+- Design: retain Jest's source invalidation within a directory keyed by runtime, lockfile/manifests, TypeScript/Jest configuration, and transformer inputs. Source edits keep the directory stable. Compatibility changes select a new directory. The existing scoped reset removes the entire cache volume. No date-based cache invalidation or application lifetime change.
+- Static diff review, `git diff --check`, and `bash -n packages/backend/src/tests/setup-local-e2e-tests.sh` passed. Typecheck and lint remain pending. Tests, Docker builds/runs, cache/reset diagnostics, and benchmarks were not run. No T2 performance or correctness claim is made. No new measurement artifacts were created. T1 acceptance is complete per the upstream investigation above.
+- Next bounded task, only after user authorization and after the other E2E run finishes: run the cache-key unit cases, typecheck/lint, then verify actual cache reuse, source-edit and transform-config invalidation, and scoped reset. Collect cold and three comparable warm small/batch trials against T1 with the same services/template state. Keep the template warm in both variants and report T2 savings separately. Run the full E2E suite for acceptance of this shared runner change.
+
+- T2 rebase: fetched `dev-joss` and rebased onto `dev-joss/perf/testing` at `0dcc105d`. Preserved the upstream test environment cleanup and T1 acceptance record with the T2 cache changes. No tests were run during this rebase.
+
+
+### 2026-09-05 UTC — T2 validation and acceptance
+
+- Source: `0dcc105d` plus the T2 cache changes. The user authorized tests and continuing T2. No commit, dependency, CI, application, or existing test change was retained. The ignored `.env.test` was copied from the main checkout to enable this worktree's runner; its existing host launcher supplied `cross-env`, while Docker installed the locked test dependencies.
+- **T2 accepted.** Raw logs, exact commands, input/image identities, reproduction scripts, phase tables, and cache snapshots are in [`t2-cache-validation-20260905/readme.md`](../packages/backend/node-profiles/t2-cache-validation-20260905/readme.md). Captures stayed outside the build context until all runs finished. Prior artifacts were preserved.
+- Three alternating warm trials per variant/selection, same retained T1 image/services/template: small median **11.888 → 7.995 s** (baseline 11.646–18.862; candidate 7.691–8.271), a **3.893 s / 32.7%** reduction. Batch median **24.274 → 18.662 s** (baseline 24.155–24.361; candidate 18.323–19.319), a **5.612 s / 23.1%** reduction. Jest medians: **6.429 → 2.681 s** and **18.501 → 12.601 s**. Baseline uses a fresh container-local cache directory; candidate uses the persistent volume. These savings are separate from T1. One baseline small reset was slow; raw phase evidence retains it.
+- All benchmark selections matched: 3 tests per small run; the original 14-file/218-test manifest in all six batches. Colima stayed at 6 CPUs / 8 GiB; Node 23.11.0 ARM64, Jest 29.7.0, four workers, 1 GB recycling, no profiling or retries.
+- Full E2E suite passed: **231 suites passed, 2 skipped; 2,632 tests passed, 52 skipped, 7 TODOs; exit 0**. Jest **225.140 s**, command **230.83 s**. This is correctness evidence, not a matched full-suite speed claim. All 6 cache-key unit cases, container typecheck, host lint, shell syntax, and diff checks passed. Host lint retains unrelated warnings. Initial setup commands lacked `cross-env` and `.env.test`; container lint scanned dependency files and failed, then standard host lint passed. Details remain in the report.
+- Unchanged reuse preserved all 3,556 transform files and mtimes. An intentional HTTP assertion change failed with exit 1; restoring it passed. A temporary transform/Jest config change selected a new cache directory and applied a one-test filter; restoration passed all 3 tests. The scoped reset removed the cache and other project test volumes while preserving all seven unrelated container IDs. The next cold run passed in **31.571 s** with warm image/build cache. The initial build/setup run passed in **83.78 s**. Fresh-cache batch trials used warm services/template; no fresh-services batch trial was collected.
+- No natural-shutdown, memory, or restart claim is made; existing forced-exit warnings remain. Next bounded task: **T3**, one measured eager-import change and a resource-lifetime audit using the existing profile.

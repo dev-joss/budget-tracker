@@ -8,7 +8,15 @@ npm run test:e2e -- --testPathPattern='user/set-password\.e2e\.ts$'
 
 Local runs retain PostgreSQL, Redis, and a verified migrated template. A hash of the checkout's canonical path scopes the Compose project. Checkouts with the same folder name have separate test services and volumes.
 
-Each invocation builds the runner image so source edits and deleted files reach the tests. It starts a fresh one-off runner container, recreates the worker databases from the template, and clears the dedicated test Redis service. Node, the application, and the Jest transform cache start fresh. Transform-cache persistence remains T2 work.
+Each invocation builds the runner image so source edits and deleted files reach the tests. It starts a fresh one-off runner container, recreates the worker databases from the template, and clears the dedicated test Redis service. Node and the application start fresh. A named volume retains the Jest cache for this checkout. T2 validation and timing results are recorded in the performance plan.
+
+## Jest cache
+
+The local Compose override mounts `test_jest_cache` at `/var/cache/bt-local-e2e/jest` and sets `LOCAL_E2E_CACHE_ROOT`. The E2E config uses a subdirectory keyed by Node version, platform, architecture, the dependency lockfile and package manifests, TypeScript configs, Jest configs, the custom ESM transformer, and the cache-key helper. CI uses the default cache path because its runner does not set this variable.
+
+Jest retains its source-content and configuration invalidation within each directory. Source edits keep the directory stable; dependency or transform-input changes select a different directory. This also covers the custom ESM transformer's dependency on TypeScript. Required key inputs must exist or config loading fails. If a new transform helper or inherited TypeScript config is added, include it in the key inputs.
+
+The cache does not depend on database seed dates. Older cache directories remain available until the explicit reset removes the volume. `--no-cache` can disable Jest cache use for a comparison; it does not remove the volume. The runner still rebuilds current source on each invocation.
 
 ## Template validity
 
@@ -25,7 +33,7 @@ The exchange-rate migration seeds rates ten days before the current date. The lo
 
 ## Reset and concurrency
 
-To stop this checkout's test containers and remove its test volumes:
+To stop this checkout's test containers and remove its test volumes, including all Jest cache directories:
 
 ```sh
 npm run test:e2e -- --reset
@@ -37,7 +45,7 @@ Do not run overlapping e2e commands or change test-service configuration during 
 
 ## Scope
 
-This implements the local service and template lifecycle authorized by T1 in [the performance plan](local-e2e-performance-plan.md). No prior architecture decision record for the test runner was found. The application architecture and CI runner behavior remain unchanged. This document describes the design; correctness checks and measured performance belong in the plan's work log.
+This implements the local service/template lifecycle in T1 and the cache design in T2 of [the performance plan](local-e2e-performance-plan.md). No prior architecture decision record for the test runner was found. The application architecture and CI runner behavior remain unchanged. This document describes the design; correctness checks and measured performance belong in the plan's work log.
 
 ## Test-file cleanup
 

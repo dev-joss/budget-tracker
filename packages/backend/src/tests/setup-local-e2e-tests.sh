@@ -19,7 +19,7 @@ if [ "${1:-}" = "--reset" ]; then
     exit 1
   fi
   compose down --volumes --remove-orphans
-  echo "Local e2e services and template removed for this checkout."
+  echo "Local e2e services, template, and Jest cache removed for this checkout."
   exit 0
 fi
 
@@ -40,8 +40,8 @@ echo "Waiting for test services..."
 wait_for compose exec -T test-db pg_isready -h 127.0.0.1 -U "$APPLICATION_DB_USERNAME" -d "$APPLICATION_DB_DATABASE"
 wait_for compose exec -T test-redis redis-cli ping
 
-# One-off runners have no reusable app process or transform cache. PostgreSQL
-# and Redis stay available; the runner exits with the migration or Jest status.
+# One-off runners start a fresh app process and mount the checkout's Jest cache.
+# PostgreSQL and Redis stay available; the runner returns migration or Jest status.
 compose run --rm -T --no-deps \
   -e SHOW_LOGS_IN_TESTS="${SHOW_LOGS_IN_TESTS:-}" test-runner \
   node -r ts-node/register/transpile-only packages/backend/src/tests/run-local-e2e.ts "$@"
