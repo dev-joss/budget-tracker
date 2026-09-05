@@ -1,6 +1,6 @@
 # Local backend e2e performance plan
 
-Status: T0 baseline complete; T1–T8 remain pending.
+Status: T0 complete; T1 implemented with acceptance pending full-suite investigation; T2–T8 remain pending.
 Evidence date: 2026-09-04.
 
 ## Objective and scope
@@ -84,7 +84,7 @@ Impact ranking and implementation order differ. Persistent cache work comes earl
 | ID | Task | Depends on | Initial status |
 | --- | --- | --- | --- |
 | T0 | Establish comparable local baseline | Existing evidence | Complete |
-| T1 | Persist local services and migrated template | T0 | Pending |
+| T1 | Persist local services and migrated template | T0 | Implemented; acceptance pending |
 | T2 | Persist Jest transform cache | T0; integrate with T1 | Pending |
 | T3 | Reduce eager imports; audit contexts and resource lifetime | T0 | Pending |
 | T4 | Reuse application initialization across files | T3 | Pending |
@@ -213,3 +213,16 @@ Preserve raw results. Do not overwrite earlier captures or silently change the b
 - All eight invocations passed: 3 tests per small run and 218 tests in the exact saved 14-file selection per batch. No failures, skips, or retries were reported. Source restoration and final tracked diff checks passed. Existing services remained running. No memory or restart count was measured; process snapshots are not lifecycle evidence.
 - Typecheck, lint, unit tests, and the full e2e suite were not run because T0 retains only documentation and measurement artifacts. There is no candidate comparison in this task. The earlier serial CPU profile is not a directly comparable speed baseline.
 - Next bounded task: **T1**, persistent local services and a verified migrated template. Define cache validity, date refresh, reset, source refresh, and interrupted-setup recovery before implementation; then measure against this normal-runner baseline and run the required correctness checks.
+
+
+### 2026-09-05 UTC — T1 implemented; acceptance pending
+
+- Source: `9a631da7` plus T1 changes. Added the local Compose override, local shell entry, template-key helper and unit tests, local preparation/test runner, and [usage/design documentation](local-e2e-runner.md). The existing entry script dispatches local runs to this path; CI retains its existing path. No dependency, application, migration, or existing test change was retained. No commit was made.
+- Local PostgreSQL/Redis and a verified template persist under a Compose project derived from the canonical checkout path. Each invocation builds current source, uses a fresh one-off runner, recreates worker databases, and clears the isolated Redis service. `npm run test:e2e -- --reset` removes only this checkout's services/volumes; build caches remain. A PostgreSQL major upgrade requires reset first.
+- The validity key covers recursive migrations, seed fixtures, dependency/configuration inputs, runner/verifier source, actual Node/PostgreSQL versions, architecture, and UTC day. Verification checks migration names, schema/enum/function/trigger definitions, and seed contents/dates. A database comment publishes validity only after verification succeeds. An advisory lock guards preparation and execution; do not overlap runs or change service configuration during a run.
+- Exact commands, all raw captures, input hashes, images, phase tables, and recovery scripts are in [`t1-local-reuse-20260905/readme.md`](../packages/backend/node-profiles/t1-local-reuse-20260905/readme.md). Timing captures stayed outside the Docker build context until all checks finished. Earlier captures were preserved.
+- Final warm trials (three per selection): small median **15.597 s** (15.104–16.702), versus T0 **66.120 s**; batch median **29.184 s** (28.338–29.700), versus T0 **77.767 s**. Median reductions: **50.523 s / 76.4%** and **48.583 s / 62.5%**. All final batches matched the saved 14-file / 218-test selection; each small run passed 3 tests. Normal four-worker/1 GB recycling settings, Node 23.11.0 ARM64, and Colima 6 CPUs / 8 GiB were retained. No CPU profiling or transform-cache persistence was used. Trials were collected in separate baseline/candidate blocks; uncontrolled host activity limits precision.
+- Cold reset with warm build/image cache passed in **35.652 s** before the final verifier extension. Final-code trigger-corruption recovery passed in **33.801 s**. Intentional HTTP assertion failure proved source refresh and exit code 1; the edit was restored. Damaged schema, stale seed dates, worker/Redis sentinels, seed-change invalidation, killed migration setup with no published marker, recovery, and scoped reset all passed. Reset preserved five unrelated running services.
+- Checks passed: 21 key/date unit cases, final container typecheck, backend lint, shell syntax, focused HTTP batches, recovery diagnostics, and restored-source/diff checks. Lint has existing warnings outside changed files. Host typecheck initially failed because its installed `ofx-js` module was missing; the lockfile-built container typecheck passed. No memory/restart or natural-shutdown claim is made; existing Jest forced-exit warnings remain.
+- **Acceptance is not complete.** The final full e2e command ran to completion in **288.151 s**: **230 suites passed, 1 failed, 2 skipped; 2,630 tests passed, 1 failed, 52 skipped, 7 TODOs**. The failure was the import-batch filter at `src/services/transactions/get-transactions.e2e.ts:693` (expected 2 rows, received 0). That file passed all 16 tests alone under both T1 and the original runner. An earlier full attempt, stopped to finish schema verification, reported a securities-sync concurrency failure (429 versus expected 200); that file also passed all 13 tests under both runners. The cause of these full-run failures remains unproved.
+- Per the stop-early rule, no further full-suite retry or speculative application/test fix was made. Next bounded work: investigate the full-suite-only failure with user direction before accepting T1. T2 remains pending.

@@ -1,0 +1,16 @@
+services:
+  test-db:
+    labels:
+      com.docker.compose.project: ${COMPOSE_PROJECT_NAME}
+  test-redis:
+    labels:
+      com.docker.compose.project: ${COMPOSE_PROJECT_NAME}
+  test-runner:
+    init: true
+    environment:
+      TZ: UTC
+      APPLICATION_DB_HOST: test-db
+      APPLICATION_DB_PORT: 5432
+      APPLICATION_REDIS_HOST: test-redis
+    labels:
+      com.docker.compose.project: ${COMPOSE_PROJECT_NAME}
