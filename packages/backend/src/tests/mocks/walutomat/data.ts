@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker';
+import { faker } from '@faker-js/faker/locale/en';
 import type { Currency, HistoryItem, WalletBalance } from '@services/bank-data-providers/walutomat/api-client';
 import { subDays } from 'date-fns';
 

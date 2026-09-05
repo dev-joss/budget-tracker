@@ -1,6 +1,6 @@
 # Local backend e2e performance plan
 
-Status: T0–T2 complete; T3–T8 remain pending.
+Status: T0–T3 complete; T4–T8 remain pending.
 Evidence date: 2026-09-05 UTC.
 
 ## Objective and scope
@@ -86,7 +86,7 @@ Impact ranking and implementation order differ. Persistent cache work comes earl
 | T0 | Establish comparable local baseline | Existing evidence | Complete |
 | T1 | Persist local services and migrated template | T0 | Complete; full suite passed |
 | T2 | Persist Jest transform cache | T0; integrate with T1 | Complete; validated and measured |
-| T3 | Reduce eager imports; audit contexts and resource lifetime | T0 | Pending |
+| T3 | Reduce eager imports; audit contexts and resource lifetime | T0 | Complete; import reduction and audit recorded |
 | T4 | Reuse application initialization across files | T3 | Pending |
 | T5 | Reduce measured fixture/reset costs | T0; benchmark current retained design | Pending |
 | T6 | Tune workers and memory recycling | Retained T1–T5 changes | Pending |
@@ -257,3 +257,14 @@ Preserve raw results. Do not overwrite earlier captures or silently change the b
 - Full E2E suite passed: **231 suites passed, 2 skipped; 2,632 tests passed, 52 skipped, 7 TODOs; exit 0**. Jest **225.140 s**, command **230.83 s**. This is correctness evidence, not a matched full-suite speed claim. All 6 cache-key unit cases, container typecheck, host lint, shell syntax, and diff checks passed. Host lint retains unrelated warnings. Initial setup commands lacked `cross-env` and `.env.test`; container lint scanned dependency files and failed, then standard host lint passed. Details remain in the report.
 - Unchanged reuse preserved all 3,556 transform files and mtimes. An intentional HTTP assertion change failed with exit 1; restoring it passed. A temporary transform/Jest config change selected a new cache directory and applied a one-test filter; restoration passed all 3 tests. The scoped reset removed the cache and other project test volumes while preserving all seven unrelated container IDs. The next cold run passed in **31.571 s** with warm image/build cache. The initial build/setup run passed in **83.78 s**. Fresh-cache batch trials used warm services/template; no fresh-services batch trial was collected.
 - No natural-shutdown, memory, or restart claim is made; existing forced-exit warnings remain. Next bounded task: **T3**, one measured eager-import change and a resource-lifetime audit using the existing profile.
+
+
+### 2026-09-05 UTC — T3 import reduction and resource audit complete
+
+- Source: `909eb000` plus ten backend import-path edits. Replaced `@faker-js/faker` with its public `@faker-js/faker/locale/en` entry point in the demo generator, shared helpers/mocks, and four E2E files. The installed package verifies that both exports are the same English instance. All root imports had to change because any remaining eager root import loads every locale. No fixture logic, seed handling, job schedule, dependency, CI, context, transaction, or application lifetime change. No commit made.
+- **T3 complete.** Raw logs, scripts, source/image identities, phase tables, and the resource audit are in [`t3-import-audit-20260905/readme.md`](../packages/backend/node-profiles/t3-import-audit-20260905/readme.md). Captures stayed outside the Docker build context until all runs finished. Existing artifacts and unrelated files were preserved.
+- The real-Jest diagnostic reduced Faker modules from **2,778 to 205 per file**; both variants passed the same 16 HTTP tests in two files using one worker process. Three fresh Node import probes showed a median **333.791 → 31.723 ms** load time. The probes measure the import itself, not app startup; heap samples are not retained heap. No new CPU profile or async-hook speed claim was needed for this bounded change.
+- Three warm trials per selection/variant, with a separate priming run: Jest medians **2.504 → 2.232 s** small (10.9%) and **12.281 → 11.706 s** batch (4.7%). Total medians **7.939 → 7.758 s** and **18.265 → 17.817 s**; total ranges overlap, so only a modest gain is supported. Baseline/candidate blocks, host activity, and build/start variance limit total-time attribution. Both variants retained T1/T2, four workers, 1 GB recycling, Node 23.11.0 ARM64, Colima 6 CPUs / 8 GiB. No profiling or retries in timing runs. All batches matched the 14-file/218-test manifest; all small runs passed 3 tests.
+- Resource audit: cleanup awaits the listed queues, Redis quit, HTTP close, and MSW close. However, both diagnostic files retained **one available Sequelize connection and one idle auth connection** after cleanup. The three cls-hooked namespaces enable hooks without a stored disable handle in the installed package. No accumulated-hook count, retention root, indefinite pool leak, or memory saving was proved. Request-context isolation and Sequelize rollback behavior were not changed. T4 must define pool/context ownership before app reuse; full audit and resource counts are in the report.
+- Checks passed: **51 existing demo generation/solvency unit tests**, container typecheck, host lint, diff checks, both diagnostic HTTP selections, all warm trials, and the final full E2E suite: **231 suites passed, 2 skipped; 2,632 tests passed, 52 skipped, 7 TODOs; exit 0**. Jest **210.032 s**, command **215.85 s**; this is not a matched full-suite speed comparison. Lint has existing warnings. Forced-exit warnings remain; no natural-shutdown claim. No failed check or unexpected test failure occurred during T3 validation. Temporary instrumentation was fully restored.
+- Next bounded task: **T4**, document app/database/Redis/queue/mock/context ownership and reset before implementation. The post-cleanup database pools and cls-hooked lifetime are inputs to that design, not fixes delivered by T3. Do not repeat import changes without new evidence.

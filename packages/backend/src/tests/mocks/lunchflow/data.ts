@@ -1,5 +1,5 @@
 import { asDecimal } from '@bt/shared/types';
-import { faker } from '@faker-js/faker';
+import { faker } from '@faker-js/faker/locale/en';
 import type {
   LunchFlowApiAccountsResponse,
   LunchFlowApiBalance,

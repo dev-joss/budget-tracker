@@ -1,5 +1,5 @@
 import { BANK_PROVIDER_TYPE, ExternalMonobankTransactionResponse, asCents } from '@bt/shared/types';
-import { faker } from '@faker-js/faker';
+import { faker } from '@faker-js/faker/locale/en';
 import Accounts from '@models/accounts.model';
 import Transactions from '@models/transactions.model';
 import * as helpers from '@tests/helpers';
