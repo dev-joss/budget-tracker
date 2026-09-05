@@ -1,5 +1,5 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
-import { faker } from '@faker-js/faker';
+import { faker } from '@faker-js/faker/locale/en';
 import { addDays, eachDayOfInterval, endOfMonth, isWeekend, setDate, startOfMonth, subMonths } from 'date-fns';
 
 import { DEMO_CONFIG, type DemoAccountKey } from '../demo-config';

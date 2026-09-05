@@ -4,6 +4,8 @@ import { SetupServerApi } from 'msw/node';
 
 declare global {
   // eslint-disable-next-line no-var
+  var cleanupE2eResources: (() => Promise<void>) | undefined;
+  // eslint-disable-next-line no-var
   var mswMockServer: SetupServerApi;
   // eslint-disable-next-line no-var
   var BASE_CURRENCY: Currencies | null;

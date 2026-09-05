@@ -45,8 +45,8 @@ The employee proof succeeded with seven reports and 42 unique reimbursable expen
 Read and follow:
 
 - `.claude/docs/backend-conventions.md`
-- `.claude/skills/frontend-rules/SKILL.md`
-- `.claude/skills/e2e-test-creator/SKILL.md`
+- `.agents/skills/frontend-rules/SKILL.md`
+- `.agents/skills/e2e-test-creator/SKILL.md`
 
 Important implementation areas:
 

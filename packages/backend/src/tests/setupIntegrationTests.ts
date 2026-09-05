@@ -3,7 +3,7 @@ import type { RecordId } from '@bt/shared/types';
 import { until } from '@common/helpers';
 import { roundHalfToEven } from '@common/utils/round-half-to-even';
 import { i18nextReady } from '@i18n/index';
-import { afterAll, afterEach, beforeAll, beforeEach, expect, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, expect, jest } from '@jest/globals';
 import Categories from '@models/categories.model';
 import { connection } from '@models/index';
 import { serverInstance } from '@root/app';
@@ -174,7 +174,6 @@ afterEach(() => {
   // The counter persists across tests and affects mock responses for reconnection testing
   resetSessionCounter();
 });
-afterAll(() => mswMockServer.close());
 
 global.mswMockServer = mswMockServer;
 
@@ -460,42 +459,43 @@ beforeEach(async () => {
   }
 }, 20_000); // Timeout for test setup (truncate + create user + sign-in)
 
-afterAll(async () => {
-  try {
-    // Flush debounced categorization buffers before closing queues
-    await flushAllPendingCategorizationBuffers();
+// Jest skips afterAll when a file has no enabled tests. The environment calls
+// this callback at run_finish while queue processors can still use their modules.
+global.cleanupE2eResources = async () => {
+  loadCurrencyRatesJob.stop();
+  // Flush debounced categorization buffers before closing queues
+  await flushAllPendingCategorizationBuffers();
 
-    // Close ALL BullMQ workers and queues first to ensure no pending operations
-    // This prevents "The client is closed" errors when workers try to access Redis
-    await closeAllMonobankQueueBundles();
-    await categorizationWorker.close();
-    await categorizationQueue.close();
-    await ynabImportWorker.close();
-    await ynabImportQueue.close();
-    await budgetBakersWalletImportWorker.close();
-    await budgetBakersWalletImportQueue.close();
-    await msMoneyImportWorker.close();
-    await msMoneyImportQueue.close();
-    await ofxImportWorker.close();
-    await ofxImportQueue.close();
-    await csvImportWorker.close();
-    await csvImportQueue.close();
-    await backupRestoreWorker.close();
-    await backupRestoreQueue.close();
-    await logoResolutionWorker.close();
-    await logoResolutionQueue.close();
-    await subscriptionReminderEmailWorker.close();
-    await subscriptionReminderEmailQueue.close();
-    await baseCurrencyChangeWorker.close();
-    await baseCurrencyChangeQueue.close();
-    await workExpenseSynchronizationWorker.close();
-    await workExpenseSynchronizationQueue.close();
+  // Close ALL BullMQ workers and queues first to ensure no pending operations
+  // This prevents "The client is closed" errors when workers try to access Redis
+  await closeAllMonobankQueueBundles();
+  await categorizationWorker.close();
+  await categorizationQueue.close();
+  await ynabImportWorker.close();
+  await ynabImportQueue.close();
+  await budgetBakersWalletImportWorker.close();
+  await budgetBakersWalletImportQueue.close();
+  await msMoneyImportWorker.close();
+  await msMoneyImportQueue.close();
+  await ofxImportWorker.close();
+  await ofxImportQueue.close();
+  await csvImportWorker.close();
+  await csvImportQueue.close();
+  await backupRestoreWorker.close();
+  await backupRestoreQueue.close();
+  await logoResolutionWorker.close();
+  await logoResolutionQueue.close();
+  await subscriptionReminderEmailWorker.close();
+  await subscriptionReminderEmailQueue.close();
+  await baseCurrencyChangeWorker.close();
+  await baseCurrencyChangeQueue.close();
+  await workExpenseSynchronizationWorker.close();
+  await workExpenseSynchronizationQueue.close();
 
-    // Now safe to close Redis client
-    await redisClient.quit();
-    serverInstance.close();
-    loadCurrencyRatesJob.stop();
-  } catch (err) {
-    console.log('afterAll', err);
-  }
-});
+  // Now safe to close Redis client
+  await redisClient.quit();
+  await new Promise<void>((resolve, reject) => {
+    serverInstance.close((error) => (error ? reject(error) : resolve()));
+  });
+  mswMockServer.close();
+};

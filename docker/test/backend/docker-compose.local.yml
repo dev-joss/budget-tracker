@@ -1,0 +1,22 @@
+services:
+  test-db:
+    labels:
+      com.docker.compose.project: ${COMPOSE_PROJECT_NAME}
+  test-redis:
+    labels:
+      com.docker.compose.project: ${COMPOSE_PROJECT_NAME}
+  test-runner:
+    init: true
+    volumes:
+      - test_jest_cache:/var/cache/bt-local-e2e/jest
+    environment:
+      LOCAL_E2E_CACHE_ROOT: /var/cache/bt-local-e2e/jest
+      TZ: UTC
+      APPLICATION_DB_HOST: test-db
+      APPLICATION_DB_PORT: 5432
+      APPLICATION_REDIS_HOST: test-redis
+    labels:
+      com.docker.compose.project: ${COMPOSE_PROJECT_NAME}
+
+volumes:
+  test_jest_cache:
